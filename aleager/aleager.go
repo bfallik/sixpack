@@ -1,7 +1,7 @@
 package aleager
 
 import (
-	"fmt"
+	"html/template"
 	"net/http"
 
 	"appengine"
@@ -25,5 +25,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusFound)
 		return
 	}
-	fmt.Fprintf(w, "Hello, %v. How about a beer?", u)
+	t, err := template.ParseFiles("templates/trial1.html")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	if err := t.Execute(w, struct{ Name string }{u.String()}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }

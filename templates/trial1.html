@@ -1,0 +1,28 @@
+<html>
+<body onload="checkSubmitStatus()">
+<h1>Hello {{.Name}}</h1>
+<form name="search" action="">
+  <input type="text" id="txtId">
+  <input type="submit" value="submit" onclick="queryBeer()"/>
+</form>
+<pre id="results"></pre>
+
+<script type="text/javascript">
+function queryBeer(){
+    var xmlHttp = new XMLHttpRequest();
+    var val = document.getElementById("txtId").value;
+    var req = "http://api.untappd.com/v4/search/beer?client_id=INVALID&client_secret=INVALID&q="+val;
+    xmlHttp.open( "GET", req, false);
+    xmlHttp.send( null );
+    window.sessionStorage['submit'] = xmlHttp.responseText;
+}
+
+function checkSubmitStatus(){
+    if(window.sessionStorage['submit']){
+        document.getElementById("results").innerHTML = JSON.stringify(JSON.parse(window.sessionStorage['submit']), undefined, 2);
+        window.sessionStorage['submit'] = '';
+    }
+}
+</script>
+</body>
+</html>
