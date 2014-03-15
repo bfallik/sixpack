@@ -12,6 +12,12 @@ func init() {
 	http.HandleFunc("/", handler)
 }
 
+const (
+	endpoint     = "http://api.untappd.com/v4"
+	clientId     = "INVALID"
+	clientSecret = "INVALID"
+)
+
 func handler(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
 	u := user.Current(c)
@@ -29,7 +35,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-	if err := t.Execute(w, struct{ Name string }{u.String()}); err != nil {
+	s := struct{ Name, Endpoint, ClientId, ClientSecret string }{u.String(), endpoint, clientId, clientSecret}
+	if err := t.Execute(w, s); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

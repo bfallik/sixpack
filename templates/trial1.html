@@ -11,7 +11,7 @@
 function queryBeer(){
     var xmlHttp = new XMLHttpRequest();
     var val = document.getElementById("txtId").value;
-    var req = "http://api.untappd.com/v4/search/beer?client_id=INVALID&client_secret=INVALID&q="+val;
+    var req = "{{.Endpoint}}/search/beer?client_id={{.ClientId}}&client_secret={{.ClientSecret}}&q="+val;
     xmlHttp.open( "GET", req, false);
     xmlHttp.send( null );
     window.sessionStorage['submit'] = xmlHttp.responseText;
