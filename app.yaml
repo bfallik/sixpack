@@ -1,4 +1,4 @@
-application: ale-ager
+application: beer-tasting
 version: 1
 runtime: go
 api_version: go1
