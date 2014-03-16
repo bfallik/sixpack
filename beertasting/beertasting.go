@@ -1,19 +1,24 @@
 package beertasting
 
 import (
-	"fmt"
-	"html/template"
-	"net/http"
-
 	"appengine"
 	"appengine/datastore"
+	"appengine/urlfetch"
 	"appengine/user"
+	"encoding/json"
+	"fmt"
+	"html/template"
+	"io/ioutil"
+	"net/http"
+	"net/url"
 )
 
 func init() {
 	http.HandleFunc("/", handler)
+	http.HandleFunc("/feed", feedHandler)
 	http.HandleFunc("/admin/untappd/client_id", clientIdHandler)
 	http.HandleFunc("/admin/untappd/client_secret", clientSecretHandler)
+	http.HandleFunc("/oauth/untappd", oauthUntappdHandler)
 }
 
 const (
@@ -48,37 +53,139 @@ func getClientSecret(c appengine.Context) (ClientSecret, error) {
 	return clientSecret, err
 }
 
+func oauthCallback(c appengine.Context, svc string) string {
+	var u url.URL
+	u.Scheme = "http"
+	u.Host = appengine.DefaultVersionHostname(c)
+	u.Path = fmt.Sprintf("oauth/%s", svc)
+	return u.String()
+}
+
+func userLoggedIn(c appengine.Context, curUrl *url.URL, w http.ResponseWriter) (*user.User, bool) {
+	u := user.Current(c)
+	if u != nil {
+		return u, true
+	}
+	url, err := user.LoginURL(c, curUrl.String())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, false
+	}
+	w.Header().Set("Location", url)
+	w.WriteHeader(http.StatusFound)
+	return nil, false
+}
+
 func handler(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	u := user.Current(c)
-	if u == nil {
-		url, err := user.LoginURL(c, r.URL.String())
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Location", url)
-		w.WriteHeader(http.StatusFound)
+	user, ok := userLoggedIn(c, r.URL, w)
+	if !ok {
+		return
+	}
+	var err error
+	var clientId ClientId
+	if clientId, err = getClientId(c); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	t, err := template.ParseFiles("templates/trial1.html")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-	var clientId ClientId
-	if clientId, err = getClientId(c); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	var clientSecret ClientSecret
 	if clientSecret, err = getClientSecret(c); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	s := struct{ Name, Endpoint, ClientId, ClientSecret string }{u.String(), endpoint, clientId.Value, clientSecret.Value}
+	s := struct{ Name, Endpoint, ClientId, ClientSecret string }{user.String(), endpoint, clientId.Value, clientSecret.Value}
 	if err := t.Execute(w, s); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func oauthUntappdHandler(w http.ResponseWriter, r *http.Request) {
+	c := appengine.NewContext(r)
+	_, ok := userLoggedIn(c, r.URL, w)
+	if !ok {
+		return
+	}
+	if len(r.FormValue("code")) == 0 {
+		http.Error(w, "missing code parameter", http.StatusInternalServerError)
+	}
+	clientId, err := getClientId(c)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	clientSecret, err := getClientSecret(c)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	u := url.URL{Scheme: "https", Host: "untappd.com", Path: "oauth/authorize/"}
+	q := u.Query()
+	q.Add("client_id", clientId.Value)
+	q.Add("client_secret", clientSecret.Value)
+	q.Add("response_type", "code")
+	q.Add("code", r.FormValue("code"))
+	q.Add("redirect_url", oauthCallback(c, "untappd"))
+	u.RawQuery = q.Encode()
+	resp, err := urlfetch.Client(c).Get(u.String())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	buf, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	oauthResponse := struct {
+		Response struct {
+			AccessToken string `json:"access_token"`
+		}
+	}{}
+	err = json.Unmarshal(buf, &oauthResponse)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	u = url.URL{Scheme: "https", Host: "api.untappd.com", Path: "/v4/checkin/recent"}
+	q = u.Query()
+	q.Add("access_token", oauthResponse.Response.AccessToken)
+	u.RawQuery = q.Encode()
+	client := urlfetch.Client(c)
+	resp, err = client.Get(u.String())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	resp.Write(w)
+}
+
+func feedHandler(w http.ResponseWriter, r *http.Request) {
+	c := appengine.NewContext(r)
+	_, ok := userLoggedIn(c, r.URL, w)
+	if !ok {
+		return
+	}
+	var err error
+	var clientId ClientId
+	if clientId, err = getClientId(c); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var untappdOath url.URL
+	untappdOath.Scheme = "https"
+	untappdOath.Host = "untappd.com"
+	untappdOath.Path = "oauth/authenticate/"
+	q := untappdOath.Query()
+	q.Add("client_id", clientId.Value)
+	q.Add("response_type", "code")
+	q.Add("redirect_url", oauthCallback(c, "untappd"))
+	untappdOath.RawQuery = q.Encode()
+	http.Redirect(w, r, untappdOath.String(), http.StatusFound)
+	return
 }
 
 func clientIdHandler(w http.ResponseWriter, r *http.Request) {
