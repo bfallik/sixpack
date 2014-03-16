@@ -1,0 +1,20 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "sixpack", "sixpack\sixpack.csproj", "{AA08C40A-A44A-42AB-ABCA-4C10BCC93CEA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{AA08C40A-A44A-42AB-ABCA-4C10BCC93CEA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AA08C40A-A44A-42AB-ABCA-4C10BCC93CEA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AA08C40A-A44A-42AB-ABCA-4C10BCC93CEA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AA08C40A-A44A-42AB-ABCA-4C10BCC93CEA}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
