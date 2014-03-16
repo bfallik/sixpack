@@ -1,4 +1,4 @@
-package aleager
+package beertasting
 
 import (
 	"html/template"
