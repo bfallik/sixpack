@@ -20,3 +20,4 @@ skip_files:
 - ^LICENSE$
 - ^README.md$
 - ^wireframes(.*)$
+- ^(.*)_test.go$
