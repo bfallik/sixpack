@@ -5,12 +5,14 @@ import (
 	"appengine/datastore"
 	"appengine/urlfetch"
 	"appengine/user"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 func init() {
@@ -108,6 +110,33 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var err error
+	var whitelist Whitelist
+	if err = datastore.Get(c, whitelistKey(c), &whitelist); err != nil {
+		if err == datastore.ErrNoSuchEntity {
+			c.Infof("whitelist not found, using test@example.com")
+			whitelist.Value = "test@example.com"
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	records, err := csv.NewReader(strings.NewReader(whitelist.Value)).Read()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	found := false
+	for _, record := range records {
+		if record == user.Email {
+			found = true
+			break
+		}
+	}
+	if !found {
+		http.Error(w, fmt.Sprintf("user %s not in whitelist", user), http.StatusInternalServerError)
+		return
+	}
+
 	var clientId ClientId
 	if clientId, err = getClientId(c); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
