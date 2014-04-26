@@ -5,14 +5,13 @@ import (
 	"appengine/datastore"
 	"appengine/urlfetch"
 	"appengine/user"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"github.com/ant0ine/go-json-rest/rest"
 	"html/template"
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"strings"
 )
 
 func init() {
@@ -21,8 +20,13 @@ func init() {
 	http.HandleFunc("/feed", feedHandler)
 	http.HandleFunc("/admin/untappd/client_id", clientIdHandler)
 	http.HandleFunc("/admin/untappd/client_secret", clientSecretHandler)
-	http.HandleFunc("/admin/whitelist", whitelistHandler)
 	http.HandleFunc("/oauth/untappd", oauthUntappdHandler)
+	restHandler := rest.ResourceHandler{}
+	restHandler.SetRoutes(
+		&rest.Route{"GET", "/admin/whitelist", getAdminWhitelist},
+		&rest.Route{"PUT", "/admin/whitelist", putAdminWhitelist},
+	)
+	http.Handle("/admin/whitelist", &restHandler)
 }
 
 const (
@@ -38,7 +42,7 @@ type ClientSecret struct {
 }
 
 type Whitelist struct {
-	Value string
+	Value []string
 }
 
 func clientIdKey(c appengine.Context) *datastore.Key {
@@ -114,13 +118,14 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	if err = datastore.Get(c, whitelistKey(c), &whitelist); err != nil {
 		if err == datastore.ErrNoSuchEntity {
 			c.Infof("whitelist not found, using test@example.com")
-			whitelist.Value = "test@example.com"
+			whitelist.Value = []string{"test@example.com"}
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
-	records, err := csv.NewReader(strings.NewReader(whitelist.Value)).Read()
+	//	records, err := csv.NewReader(strings.NewReader(whitelist.Value)).Read()
+	records := []string{}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -286,24 +291,31 @@ func clientSecretHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func whitelistHandler(w http.ResponseWriter, r *http.Request) {
-	c := appengine.NewContext(r)
-	switch r.Method {
-	case "PUT":
-		var whitelist Whitelist
-		whitelist.Value = r.FormValue("value")
-		if _, err := datastore.Put(c, whitelistKey(c), &whitelist); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	case "GET":
-		var whitelist Whitelist
-		if err := datastore.Get(c, whitelistKey(c), &whitelist); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		fmt.Fprintln(w, whitelist.Value)
-	default:
-		http.Error(w, fmt.Sprintf("Unhandled method: %s", r.Method), http.StatusInternalServerError)
+func putAdminWhitelist(w rest.ResponseWriter, r *rest.Request) {
+	c := appengine.NewContext(r.Request)
+	var wl []string
+	err := r.DecodeJsonPayload(&wl)
+	if err != nil {
+		err = fmt.Errorf("DecodeJsonPayload(): %s", err)
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
+	var whitelist Whitelist
+	whitelist.Value = wl
+	if _, err := datastore.Put(c, whitelistKey(c), &whitelist); err != nil {
+		err = fmt.Errorf("datastore.Put(): %s", err)
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteJson(wl)
+}
+
+func getAdminWhitelist(w rest.ResponseWriter, r *rest.Request) {
+	c := appengine.NewContext(r.Request)
+	var whitelist Whitelist
+	if err := datastore.Get(c, whitelistKey(c), &whitelist); err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteJson(whitelist.Value)
 }
