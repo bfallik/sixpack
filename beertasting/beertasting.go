@@ -15,6 +15,7 @@ import (
 
 func init() {
 	http.HandleFunc("/", handler)
+	http.HandleFunc("/search", searchHandler)
 	http.HandleFunc("/feed", feedHandler)
 	http.HandleFunc("/admin/untappd/client_id", clientIdHandler)
 	http.HandleFunc("/admin/untappd/client_secret", clientSecretHandler)
@@ -77,6 +78,15 @@ func userLoggedIn(c appengine.Context, curUrl *url.URL, w http.ResponseWriter) (
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
+	c := appengine.NewContext(r)
+	user, ok := userLoggedIn(c, r.URL, w)
+	if !ok {
+		return
+	}
+	fmt.Fprintf(w, "Welcome, %s", user)
+}
+
+func searchHandler(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
 	user, ok := userLoggedIn(c, r.URL, w)
 	if !ok {
