@@ -203,6 +203,12 @@ func feedHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+func writeJson(w rest.ResponseWriter, v interface{}) {
+	if err := w.WriteJson(v); err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
 func putAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 	c := appengine.NewContext(r.Request)
 	var config Config
@@ -217,9 +223,7 @@ func putAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 		rest.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err = w.WriteJson(config); err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	writeJson(w, config)
 }
 
 func getAdminConfig(w rest.ResponseWriter, r *rest.Request) {
@@ -229,7 +233,5 @@ func getAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 		rest.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := w.WriteJson(config); err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	writeJson(w, config)
 }
