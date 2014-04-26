@@ -27,8 +27,8 @@ func init() {
 	http.Handle("/admin/config", &restHandler)
 }
 
-const (
-	endpoint = "http://api.untappd.com/v4"
+var (
+	endpoint = url.URL{Scheme: "http", Host: "api.untappd.com", Path: "v4"}
 )
 
 type Config struct {
@@ -113,7 +113,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	s := struct{ Name, Endpoint, ClientId, ClientSecret string }{
 		user.String(),
-		endpoint,
+		endpoint.String(),
 		config.ClientId,
 		config.ClientSecret,
 	}
