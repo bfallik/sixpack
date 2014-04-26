@@ -19,6 +19,7 @@ func init() {
 	http.HandleFunc("/feed", feedHandler)
 	http.HandleFunc("/admin/untappd/client_id", clientIdHandler)
 	http.HandleFunc("/admin/untappd/client_secret", clientSecretHandler)
+	http.HandleFunc("/admin/whitelist", whitelistHandler)
 	http.HandleFunc("/oauth/untappd", oauthUntappdHandler)
 }
 
@@ -34,12 +35,20 @@ type ClientSecret struct {
 	Value string
 }
 
+type Whitelist struct {
+	Value string
+}
+
 func clientIdKey(c appengine.Context) *datastore.Key {
 	return datastore.NewKey(c, "ClientId", "default", 0, nil)
 }
 
 func clientSecretKey(c appengine.Context) *datastore.Key {
 	return datastore.NewKey(c, "ClientSecret", "default", 0, nil)
+}
+
+func whitelistKey(c appengine.Context) *datastore.Key {
+	return datastore.NewKey(c, "Whitelist", "default", 0, nil)
 }
 
 func getClientId(c appengine.Context) (ClientId, error) {
@@ -52,6 +61,12 @@ func getClientSecret(c appengine.Context) (ClientSecret, error) {
 	var clientSecret ClientSecret
 	err := datastore.Get(c, clientSecretKey(c), &clientSecret)
 	return clientSecret, err
+}
+
+func getWhitelist(c appengine.Context) (Whitelist, error) {
+	var whitelist Whitelist
+	err := datastore.Get(c, whitelistKey(c), &whitelist)
+	return whitelist, err
 }
 
 func oauthCallback(c appengine.Context, svc string) string {
@@ -237,6 +252,28 @@ func clientSecretHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		fmt.Fprintln(w, clientSecret)
+	default:
+		http.Error(w, fmt.Sprintf("Unhandled method: %s", r.Method), http.StatusInternalServerError)
+	}
+}
+
+func whitelistHandler(w http.ResponseWriter, r *http.Request) {
+	c := appengine.NewContext(r)
+	switch r.Method {
+	case "PUT":
+		var whitelist Whitelist
+		whitelist.Value = r.FormValue("value")
+		if _, err := datastore.Put(c, whitelistKey(c), &whitelist); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	case "GET":
+		var whitelist Whitelist
+		if err := datastore.Get(c, whitelistKey(c), &whitelist); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		fmt.Fprintln(w, whitelist.Value)
 	default:
 		http.Error(w, fmt.Sprintf("Unhandled method: %s", r.Method), http.StatusInternalServerError)
 	}
