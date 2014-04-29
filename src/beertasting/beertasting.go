@@ -110,6 +110,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	t, err := template.ParseFiles("templates/trial1.html")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	s := struct{ Name, Endpoint, ClientId, ClientSecret string }{
 		user.String(),
@@ -130,6 +131,7 @@ func oauthUntappdHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(r.FormValue("code")) == 0 {
 		http.Error(w, "missing code parameter", http.StatusInternalServerError)
+		return
 	}
 	var config Config
 	var err error
