@@ -47,12 +47,16 @@ func getConfig(c appengine.Context) (Config, error) {
 	return cfg, err
 }
 
-func oauthCallback(c appengine.Context, svc string) string {
-	var u url.URL
-	u.Scheme = "http"
-	u.Host = appengine.DefaultVersionHostname(c)
-	u.Path = fmt.Sprintf("oauth/%s", svc)
-	return u.String()
+func httpCallback(c appengine.Context, path string) *url.URL {
+	return &url.URL{
+		Scheme: "http",
+		Host:   appengine.DefaultVersionHostname(c),
+		Path:   path,
+	}
+}
+
+func oauthCallback(c appengine.Context, svc string) *url.URL {
+	return httpCallback(c, fmt.Sprintf("oauth/%s", svc))
 }
 
 func userLoggedIn(c appengine.Context, curUrl *url.URL, w http.ResponseWriter) (*user.User, bool) {
@@ -145,8 +149,9 @@ func oauthUntappdHandler(w http.ResponseWriter, r *http.Request) {
 	q.Add("client_secret", config.ClientSecret)
 	q.Add("response_type", "code")
 	q.Add("code", r.FormValue("code"))
-	q.Add("redirect_url", oauthCallback(c, "untappd"))
+	q.Add("redirect_url", oauthCallback(c, "untappd").String())
 	u.RawQuery = q.Encode()
+	c.Infof("authorize URL: %s", u.String())
 	resp, err := urlfetch.Client(c).Get(u.String())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -199,7 +204,7 @@ func feedHandler(w http.ResponseWriter, r *http.Request) {
 	q := untappdOath.Query()
 	q.Add("client_id", config.ClientId)
 	q.Add("response_type", "code")
-	q.Add("redirect_url", oauthCallback(c, "untappd"))
+	q.Add("redirect_url", oauthCallback(c, "untappd").String())
 	untappdOath.RawQuery = q.Encode()
 	http.Redirect(w, r, untappdOath.String(), http.StatusFound)
 	return
