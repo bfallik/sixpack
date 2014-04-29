@@ -12,12 +12,15 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"path"
+	"time"
 )
 
 func init() {
 	http.HandleFunc("/", handler)
 	http.HandleFunc("/search", searchHandler)
 	http.HandleFunc("/feed", feedHandler)
+	http.HandleFunc("/displayFeed", displayFeedHandler)
 	http.HandleFunc("/oauth/untappd", oauthUntappdHandler)
 	restHandler := rest.ResourceHandler{}
 	restHandler.SetRoutes(
@@ -169,20 +172,47 @@ func oauthUntappdHandler(w http.ResponseWriter, r *http.Request) {
 	}{}
 	err = json.Unmarshal(buf, &oauthResponse)
 	if err != nil {
+		err = fmt.Errorf("%s: %s", err.Error(), string(buf))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	u = url.URL{Scheme: "https", Host: "api.untappd.com", Path: "/v4/checkin/recent"}
-	q = u.Query()
-	q.Add("access_token", oauthResponse.Response.AccessToken)
-	u.RawQuery = q.Encode()
-	client := urlfetch.Client(c)
-	resp, err = client.Get(u.String())
+
+	expire := time.Now().AddDate(0, 0, 1)
+	hostname := appengine.DefaultVersionHostname(c)
+	raw := fmt.Sprintf("access_token=%s", oauthResponse.Response.AccessToken)
+	cookie := http.Cookie{
+		Name:       "access_token",
+		Value:      oauthResponse.Response.AccessToken,
+		Path:       "/",
+		Domain:     hostname,
+		Expires:    expire,
+		RawExpires: expire.Format(time.UnixDate),
+		MaxAge:     86400,
+		Secure:     false,
+		HttpOnly:   false,
+		Raw:        raw,
+		Unparsed:   []string{raw},
+	}
+	http.SetCookie(w, &cookie)
+	http.Redirect(w, r, "/displayFeed", http.StatusFound)
+}
+
+func displayFeedHandler(w http.ResponseWriter, r *http.Request) {
+	c := appengine.NewContext(r)
+	user, ok := userLoggedIn(c, r.URL, w)
+	if !ok {
+		return
+	}
+	t, err := template.ParseFiles("templates/feed.html")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	resp.Write(w)
+	endpoint.Path = path.Join(endpoint.Path, "checkin/recent")
+	s := struct{ Name, FeedRequest string }{user.String(), endpoint.String()}
+	if err := t.Execute(w, s); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func feedHandler(w http.ResponseWriter, r *http.Request) {
