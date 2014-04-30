@@ -246,8 +246,23 @@ func writeJson(w rest.ResponseWriter, v interface{}) {
 	}
 }
 
-func putAdminConfig(w rest.ResponseWriter, r *rest.Request) {
-	c := appengine.NewContext(r.Request)
+func datastoreRestGet(c appengine.Context, k *datastore.Key, w rest.ResponseWriter, v interface{}) {
+	if err := datastore.Get(c, k, v); err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJson(w, v)
+}
+
+func datastoreRestPut(c appengine.Context, k *datastore.Key, w rest.ResponseWriter, v interface{}) {
+	if _, err := datastore.Put(c, k, v); err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJson(w, v)
+}
+
+func putAdminConfigCtx(c appengine.Context, w rest.ResponseWriter, r *rest.Request) {
 	var config Config
 	err := r.DecodeJsonPayload(&config)
 	if err != nil {
@@ -255,20 +270,20 @@ func putAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 		rest.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if _, err := datastore.Put(c, configKey(c), &config); err != nil {
-		err = fmt.Errorf("datastore.Put(): %s", err)
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJson(w, config)
+	datastoreRestPut(c, configKey(c), w, &config)
+}
+
+func putAdminConfig(w rest.ResponseWriter, r *rest.Request) {
+	c := appengine.NewContext(r.Request)
+	putAdminConfigCtx(c, w, r)
+}
+
+func getAdminConfigCtx(c appengine.Context, w rest.ResponseWriter) {
+	var config Config
+	datastoreRestGet(c, configKey(c), w, &config)
 }
 
 func getAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 	c := appengine.NewContext(r.Request)
-	var config Config
-	if err := datastore.Get(c, configKey(c), &config); err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJson(w, config)
+	getAdminConfigCtx(c, w)
 }
