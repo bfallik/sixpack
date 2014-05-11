@@ -17,6 +17,10 @@ import (
 	"time"
 )
 
+var (
+	endpoint = url.URL{Scheme: "http", Host: "api.untappd.com", Path: "v4"}
+)
+
 func init() {
 	http.HandleFunc("/", handler)
 	http.HandleFunc("/search", searchHandler)
@@ -44,10 +48,6 @@ func init() {
 	http.Handle("/users", &restHandler)
 	http.Handle("/users/", &restHandler)
 }
-
-var (
-	endpoint = url.URL{Scheme: "http", Host: "api.untappd.com", Path: "v4"}
-)
 
 type Config struct {
 	ClientId     string
