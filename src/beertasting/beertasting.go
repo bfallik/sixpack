@@ -524,7 +524,7 @@ func getUser(w rest.ResponseWriter, r *rest.Request) {
 func getAllUsers(w rest.ResponseWriter, r *rest.Request) {
 	users := Users{}
 	users.DatastoreGet(r)
-	w.WriteJson(&users)
+	w.WriteJson(users)
 }
 
 func postUser(w rest.ResponseWriter, r *rest.Request) {
@@ -574,7 +574,7 @@ func getAllCellars(w rest.ResponseWriter, r *rest.Request) {
 		rest.Error(w, err.Error(), status)
 		return
 	}
-	w.WriteJson(&cellars)
+	w.WriteJson(cellars)
 }
 
 func postCellar(w rest.ResponseWriter, r *rest.Request) {
@@ -629,7 +629,7 @@ func getAllBeers(w rest.ResponseWriter, r *rest.Request) {
 		rest.Error(w, err.Error(), status)
 		return
 	}
-	w.WriteJson(&beers)
+	w.WriteJson(beers)
 }
 
 func postBeer(w rest.ResponseWriter, r *rest.Request) {
