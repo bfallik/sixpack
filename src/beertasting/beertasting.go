@@ -295,12 +295,13 @@ func oauthCallback(c appengine.Context, svc string) *url.URL {
 	return httpCallback(c, fmt.Sprintf("oauth/%s", svc))
 }
 
-func userLoggedIn(c appengine.Context, curUrl *url.URL, w http.ResponseWriter) (*user.User, bool) {
+func userLoggedIn(r *http.Request, w http.ResponseWriter) (*user.User, bool) {
+	c := appengine.NewContext(r)
 	u := user.Current(c)
 	if u != nil {
 		return u, true
 	}
-	url, err := user.LoginURL(c, curUrl.String())
+	url, err := user.LoginURL(c, r.URL.String())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return nil, false
@@ -311,8 +312,7 @@ func userLoggedIn(c appengine.Context, curUrl *url.URL, w http.ResponseWriter) (
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	c := appengine.NewContext(r)
-	user, ok := userLoggedIn(c, r.URL, w)
+	user, ok := userLoggedIn(r, w)
 	if !ok {
 		return
 	}
@@ -320,13 +320,13 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func searchHandler(w http.ResponseWriter, r *http.Request) {
-	c := appengine.NewContext(r)
-	user, ok := userLoggedIn(c, r.URL, w)
+	user, ok := userLoggedIn(r, w)
 	if !ok {
 		return
 	}
 	var err error
 	var config Config
+	c := appengine.NewContext(r)
 	if config, err = getConfig(c); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -364,8 +364,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func oauthUntappdHandler(w http.ResponseWriter, r *http.Request) {
-	c := appengine.NewContext(r)
-	_, ok := userLoggedIn(c, r.URL, w)
+	_, ok := userLoggedIn(r, w)
 	if !ok {
 		return
 	}
@@ -375,6 +374,7 @@ func oauthUntappdHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var config Config
 	var err error
+	c := appengine.NewContext(r)
 	if config, err = getConfig(c); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -431,8 +431,7 @@ func oauthUntappdHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func displayFeedHandler(w http.ResponseWriter, r *http.Request) {
-	c := appengine.NewContext(r)
-	user, ok := userLoggedIn(c, r.URL, w)
+	user, ok := userLoggedIn(r, w)
 	if !ok {
 		return
 	}
@@ -449,13 +448,13 @@ func displayFeedHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func feedHandler(w http.ResponseWriter, r *http.Request) {
-	c := appengine.NewContext(r)
-	_, ok := userLoggedIn(c, r.URL, w)
+	_, ok := userLoggedIn(r, w)
 	if !ok {
 		return
 	}
 	var config Config
 	var err error
+	c := appengine.NewContext(r)
 	if config, err = getConfig(c); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
