@@ -307,8 +307,9 @@ func datastoreRestPut(c appengine.Context, k *datastore.Key, v interface{}) (int
 	return http.StatusOK, nil
 }
 
-func putAdminConfigCtx(c appengine.Context, w rest.ResponseWriter, r *rest.Request) {
+func putAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 	var config Config
+	c := appengine.NewContext(r.Request)
 	err := r.DecodeJsonPayload(&config)
 	if err != nil {
 		err = fmt.Errorf("DecodeJsonPayload(): %s", err)
@@ -322,23 +323,14 @@ func putAdminConfigCtx(c appengine.Context, w rest.ResponseWriter, r *rest.Reque
 	writeJson(w, config)
 }
 
-func putAdminConfig(w rest.ResponseWriter, r *rest.Request) {
-	c := appengine.NewContext(r.Request)
-	putAdminConfigCtx(c, w, r)
-}
-
-func getAdminConfigCtx(c appengine.Context, w rest.ResponseWriter) {
+func getAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 	var config Config
+	c := appengine.NewContext(r.Request)
 	if status, err := datastoreRestGet(c, configKey(c), config); err != nil {
 		rest.Error(w, err.Error(), status)
 		return
 	}
 	writeJson(w, config)
-}
-
-func getAdminConfig(w rest.ResponseWriter, r *rest.Request) {
-	c := appengine.NewContext(r.Request)
-	getAdminConfigCtx(c, w)
 }
 
 func getUser(w rest.ResponseWriter, r *rest.Request) {
