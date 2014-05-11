@@ -300,13 +300,6 @@ func datastoreRestGet(c appengine.Context, k *datastore.Key, v interface{}) (int
 	return http.StatusOK, nil
 }
 
-func datastoreRestPut(c appengine.Context, k *datastore.Key, v interface{}) (int, error) {
-	if _, err := datastore.Put(c, k, v); err != nil {
-		return http.StatusInternalServerError, err
-	}
-	return http.StatusOK, nil
-}
-
 func putAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 	var config Config
 	c := appengine.NewContext(r.Request)
@@ -316,8 +309,8 @@ func putAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 		rest.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if status, err := datastoreRestPut(c, configKey(c), &config); err != nil {
-		rest.Error(w, err.Error(), status)
+	if _, err := datastore.Put(c, configKey(c), &config); err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	writeJson(w, config)
