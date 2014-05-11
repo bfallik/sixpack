@@ -71,6 +71,49 @@ func (user *User) DecodeJsonPayload(r *rest.Request) error {
 	return nil
 }
 
+func (User) DatastoreKey(r *rest.Request) (*datastore.Key, error) {
+	id, err := strconv.Atoi(r.PathParam("id"))
+	if err != nil {
+		return nil, err
+	}
+	c := appengine.NewContext(r.Request)
+	return datastore.NewKey(c, "User", "", int64(id), nil), nil
+}
+
+func (user *User) DatastoreGet(r *rest.Request) (int, error) {
+	key, err := user.DatastoreKey(r)
+	if err != nil {
+		return http.StatusBadRequest, err
+	}
+	c := appengine.NewContext(r.Request)
+	if status, err := datastoreRestGet(c, key, user); err != nil {
+		return status, err
+	}
+	user.ID = key.IntID()
+	return http.StatusOK, nil
+}
+
+type Users []User
+
+func (users *Users) DatastoreGet(r *rest.Request) (int, error) {
+	c := appengine.NewContext(r.Request)
+	*users = Users{}
+	q := datastore.NewQuery("User")
+	for t := q.Run(c); ; {
+		var u User
+		key, err := t.Next(&u)
+		if err == datastore.Done {
+			break
+		}
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+		u.ID = key.IntID()
+		*users = append(*users, u)
+	}
+	return http.StatusOK, nil
+}
+
 type Cellar struct {
 	ID   int64 `datastore:"-"`
 	Name string
@@ -85,6 +128,58 @@ func (cellar *Cellar) DecodeJsonPayload(r *rest.Request) error {
 		return fmt.Errorf("name required")
 	}
 	return nil
+}
+
+func (Cellar) DatastoreKey(r *rest.Request) (*datastore.Key, error) {
+	cellarID, err := strconv.Atoi(r.PathParam("cellar_id"))
+	if err != nil {
+		return nil, err
+	}
+	userKey, err := User{}.DatastoreKey(r)
+	if err != nil {
+		return nil, err
+	}
+	c := appengine.NewContext(r.Request)
+	return datastore.NewKey(c, "Cellar", "", int64(cellarID), userKey), nil
+}
+
+func (cellar *Cellar) DatastoreGet(r *rest.Request) (int, error) {
+	key, err := cellar.DatastoreKey(r)
+	if err != nil {
+		return http.StatusBadRequest, err
+	}
+	c := appengine.NewContext(r.Request)
+	if status, err := datastoreRestGet(c, key, cellar); err != nil {
+		return status, err
+	}
+	cellar.ID = key.IntID()
+	return http.StatusOK, nil
+}
+
+type Cellars []Cellar
+
+func (cellars *Cellars) DatastoreGet(r *rest.Request) (int, error) {
+	var user User
+	c := appengine.NewContext(r.Request)
+	userKey, err := user.DatastoreKey(r)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	*cellars = Cellars{}
+	q := datastore.NewQuery("Cellar").Ancestor(userKey)
+	for t := q.Run(c); ; {
+		var cl Cellar
+		key, err := t.Next(&cl)
+		if err == datastore.Done {
+			break
+		}
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+		cl.ID = key.IntID()
+		*cellars = append(*cellars, cl)
+	}
+	return http.StatusOK, nil
 }
 
 func configKey(c appengine.Context) *datastore.Key {
@@ -327,15 +422,8 @@ func getAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func getUser(w rest.ResponseWriter, r *rest.Request) {
-	id, err := strconv.Atoi(r.PathParam("id"))
-	if err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	c := appengine.NewContext(r.Request)
-	key := datastore.NewKey(c, "User", "", int64(id), nil)
 	var user User
-	if status, err := datastoreRestGet(c, key, &user); err != nil {
+	if status, err := user.DatastoreGet(r); err != nil {
 		rest.Error(w, err.Error(), status)
 		return
 	}
@@ -343,22 +431,8 @@ func getUser(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func getAllUsers(w rest.ResponseWriter, r *rest.Request) {
-	users := []User{}
-	c := appengine.NewContext(r.Request)
-	q := datastore.NewQuery("User")
-	for t := q.Run(c); ; {
-		var u User
-		key, err := t.Next(&u)
-		if err == datastore.Done {
-			break
-		}
-		if err != nil {
-			rest.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		u.ID = key.IntID()
-		users = append(users, u)
-	}
+	users := Users{}
+	users.DatastoreGet(r)
 	w.WriteJson(&users)
 }
 
@@ -381,13 +455,12 @@ func postUser(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func deleteUser(w rest.ResponseWriter, r *rest.Request) {
-	c := appengine.NewContext(r.Request)
-	id, err := strconv.Atoi(r.PathParam("id"))
+	key, err := User{}.DatastoreKey(r)
 	if err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		rest.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	key := datastore.NewKey(c, "User", "", int64(id), nil)
+	c := appengine.NewContext(r.Request)
 	err = datastore.Delete(c, key)
 	if err != nil {
 		rest.Error(w, err.Error(), http.StatusInternalServerError)
@@ -396,21 +469,8 @@ func deleteUser(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func getCellar(w rest.ResponseWriter, r *rest.Request) {
-	id, err := strconv.Atoi(r.PathParam("id"))
-	if err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	cellarId, err := strconv.Atoi(r.PathParam("cellar_id"))
-	if err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	c := appengine.NewContext(r.Request)
-	userKey := datastore.NewKey(c, "User", "", int64(id), nil)
-	key := datastore.NewKey(c, "Cellar", "", int64(cellarId), userKey)
 	var cellar Cellar
-	if status, err := datastoreRestGet(c, key, &cellar); err != nil {
+	if status, err := cellar.DatastoreGet(r); err != nil {
 		rest.Error(w, err.Error(), status)
 		return
 	}
@@ -418,35 +478,18 @@ func getCellar(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func getAllCellars(w rest.ResponseWriter, r *rest.Request) {
-	id, err := strconv.Atoi(r.PathParam("id"))
-	if err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
+	var cellars Cellars
+	if status, err := cellars.DatastoreGet(r); err != nil {
+		rest.Error(w, err.Error(), status)
 		return
-	}
-	cellars := []Cellar{}
-	c := appengine.NewContext(r.Request)
-	userKey := datastore.NewKey(c, "User", "", int64(id), nil)
-	q := datastore.NewQuery("Cellar").Ancestor(userKey)
-	for t := q.Run(c); ; {
-		var c Cellar
-		key, err := t.Next(&c)
-		if err == datastore.Done {
-			break
-		}
-		if err != nil {
-			rest.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		c.ID = key.IntID()
-		cellars = append(cellars, c)
 	}
 	w.WriteJson(&cellars)
 }
 
 func postCellar(w rest.ResponseWriter, r *rest.Request) {
-	id, err := strconv.Atoi(r.PathParam("id"))
+	userKey, err := User{}.DatastoreKey(r)
 	if err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		rest.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	cellar := Cellar{}
@@ -456,7 +499,6 @@ func postCellar(w rest.ResponseWriter, r *rest.Request) {
 		return
 	}
 	c := appengine.NewContext(r.Request)
-	userKey := datastore.NewKey(c, "User", "", int64(id), nil)
 	key := datastore.NewIncompleteKey(c, "Cellar", userKey)
 	newKey, err := datastore.Put(c, key, &cellar)
 	if err != nil {
@@ -468,19 +510,12 @@ func postCellar(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func deleteCellar(w rest.ResponseWriter, r *rest.Request) {
-	id, err := strconv.Atoi(r.PathParam("id"))
+	key, err := Cellar{}.DatastoreKey(r)
 	if err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	cellarId, err := strconv.Atoi(r.PathParam("cellar_id"))
-	if err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		rest.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	c := appengine.NewContext(r.Request)
-	userKey := datastore.NewKey(c, "User", "", int64(id), nil)
-	key := datastore.NewKey(c, "Cellar", "", int64(cellarId), userKey)
 	err = datastore.Delete(c, key)
 	if err != nil {
 		rest.Error(w, err.Error(), http.StatusInternalServerError)
