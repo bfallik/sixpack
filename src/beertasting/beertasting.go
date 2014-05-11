@@ -58,8 +58,7 @@ type User struct {
 }
 
 func (user *User) DecodeJsonPayload(r *rest.Request) error {
-	err := r.DecodeJsonPayload(user)
-	if err != nil {
+	if err := r.DecodeJsonPayload(user); err != nil {
 		return err
 	}
 	if user.Name == "" {
@@ -120,8 +119,7 @@ type Cellar struct {
 }
 
 func (cellar *Cellar) DecodeJsonPayload(r *rest.Request) error {
-	err := r.DecodeJsonPayload(cellar)
-	if err != nil {
+	if err := r.DecodeJsonPayload(cellar); err != nil {
 		return err
 	}
 	if cellar.Name == "" {
