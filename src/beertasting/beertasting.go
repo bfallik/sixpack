@@ -522,8 +522,11 @@ func getUser(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func getAllUsers(w rest.ResponseWriter, r *rest.Request) {
-	users := Users{}
-	users.DatastoreGet(r)
+	var users Users
+	if status, err := users.DatastoreGet(r); err != nil {
+		rest.Error(w, err.Error(), status)
+		return
+	}
 	w.WriteJson(users)
 }
 
