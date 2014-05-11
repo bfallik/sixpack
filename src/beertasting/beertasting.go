@@ -35,6 +35,10 @@ func init() {
 		&rest.Route{"POST", "/users/:id/cellars", postCellar},
 		&rest.Route{"GET", "/users/:id/cellars/:cellar_id", getCellar},
 		&rest.Route{"DELETE", "/users/:id/cellars/:cellar_id", deleteCellar},
+		&rest.Route{"GET", "/users/:id/cellars/:cellar_id/beers", getAllBeers},
+		&rest.Route{"POST", "/users/:id/cellars/:cellar_id/beers", postBeer},
+		&rest.Route{"GET", "/users/:id/cellars/:cellar_id/beers/:beer_id", getBeer},
+		&rest.Route{"DELETE", "/users/:id/cellars/:cellar_id/beers/:beer_id", deleteBeer},
 	)
 	http.Handle("/admin/config", &restHandler)
 	http.Handle("/users", &restHandler)
@@ -176,6 +180,72 @@ func (cellars *Cellars) DatastoreGet(r *rest.Request) (int, error) {
 		}
 		cl.ID = key.IntID()
 		*cellars = append(*cellars, cl)
+	}
+	return http.StatusOK, nil
+}
+
+type Beer struct {
+	ID   int64
+	Name string
+}
+
+func (beer *Beer) DecodeJsonPayload(r *rest.Request) error {
+	if err := r.DecodeJsonPayload(beer); err != nil {
+		return err
+	}
+	if beer.Name == "" {
+		return fmt.Errorf("name required")
+	}
+	return nil
+}
+
+func (Beer) DatastoreKey(r *rest.Request) (*datastore.Key, error) {
+	beerID, err := strconv.Atoi(r.PathParam("beer_id"))
+	if err != nil {
+		return nil, err
+	}
+	cellarKey, err := Cellar{}.DatastoreKey(r)
+	if err != nil {
+		return nil, err
+	}
+	c := appengine.NewContext(r.Request)
+	return datastore.NewKey(c, "Beer", "", int64(beerID), cellarKey), nil
+}
+
+func (beer *Beer) DatastoreGet(r *rest.Request) (int, error) {
+	key, err := beer.DatastoreKey(r)
+	if err != nil {
+		return http.StatusBadRequest, err
+	}
+	c := appengine.NewContext(r.Request)
+	if status, err := datastoreRestGet(c, key, beer); err != nil {
+		return status, err
+	}
+	beer.ID = key.IntID()
+	return http.StatusOK, nil
+}
+
+type Beers []Beer
+
+func (beers *Beers) DatastoreGet(r *rest.Request) (int, error) {
+	c := appengine.NewContext(r.Request)
+	cellarKey, err := Cellar{}.DatastoreKey(r)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	*beers = Beers{}
+	q := datastore.NewQuery("Beer").Ancestor(cellarKey)
+	for t := q.Run(c); ; {
+		var b Beer
+		key, err := t.Next(&b)
+		if err == datastore.Done {
+			break
+		}
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+		b.ID = key.IntID()
+		*beers = append(*beers, b)
 	}
 	return http.StatusOK, nil
 }
@@ -509,6 +579,60 @@ func postCellar(w rest.ResponseWriter, r *rest.Request) {
 
 func deleteCellar(w rest.ResponseWriter, r *rest.Request) {
 	key, err := Cellar{}.DatastoreKey(r)
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	c := appengine.NewContext(r.Request)
+	err = datastore.Delete(c, key)
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func getBeer(w rest.ResponseWriter, r *rest.Request) {
+	var beer Beer
+	if status, err := beer.DatastoreGet(r); err != nil {
+		rest.Error(w, err.Error(), status)
+		return
+	}
+	writeJson(w, beer)
+}
+
+func getAllBeers(w rest.ResponseWriter, r *rest.Request) {
+	var beers Beers
+	if status, err := beers.DatastoreGet(r); err != nil {
+		rest.Error(w, err.Error(), status)
+		return
+	}
+	w.WriteJson(&beers)
+}
+
+func postBeer(w rest.ResponseWriter, r *rest.Request) {
+	cellarKey, err := Cellar{}.DatastoreKey(r)
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	beer := Beer{}
+	if err := beer.DecodeJsonPayload(r); err != nil {
+		rest.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	c := appengine.NewContext(r.Request)
+	key := datastore.NewIncompleteKey(c, "Beer", cellarKey)
+	newKey, err := datastore.Put(c, key, &beer)
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	beer.ID = newKey.IntID()
+	writeJson(w, beer)
+}
+
+func deleteBeer(w rest.ResponseWriter, r *rest.Request) {
+	key, err := Beer{}.DatastoreKey(r)
 	if err != nil {
 		rest.Error(w, err.Error(), http.StatusBadRequest)
 		return
