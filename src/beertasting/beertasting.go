@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"time"
 )
 
@@ -26,8 +27,14 @@ func init() {
 	restHandler.SetRoutes(
 		&rest.Route{"GET", "/admin/config", getAdminConfig},
 		&rest.Route{"PUT", "/admin/config", putAdminConfig},
+		&rest.Route{"GET", "/users", getAllUsers},
+		&rest.Route{"POST", "/users", postUser},
+		&rest.Route{"GET", "/users/:id", getUser},
+		&rest.Route{"DELETE", "/users/:id", deleteUser},
 	)
 	http.Handle("/admin/config", &restHandler)
+	http.Handle("/users", &restHandler)
+	http.Handle("/users/", &restHandler)
 }
 
 var (
@@ -38,6 +45,26 @@ type Config struct {
 	ClientId     string
 	ClientSecret string
 	Whitelist    []string
+}
+
+type User struct {
+	ID    int64 `datastore:"-"`
+	Name  string
+	Email string
+}
+
+func (user *User) DecodeJsonPayload(r *rest.Request) error {
+	err := r.DecodeJsonPayload(user)
+	if err != nil {
+		return err
+	}
+	if user.Name == "" {
+		return fmt.Errorf("name required")
+	}
+	if user.Email == "" {
+		return fmt.Errorf("email required")
+	}
+	return nil
 }
 
 func configKey(c appengine.Context) *datastore.Key {
@@ -286,4 +313,69 @@ func getAdminConfigCtx(c appengine.Context, w rest.ResponseWriter) {
 func getAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 	c := appengine.NewContext(r.Request)
 	getAdminConfigCtx(c, w)
+}
+
+func getUser(w rest.ResponseWriter, r *rest.Request) {
+	id, err := strconv.Atoi(r.PathParam("id"))
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	c := appengine.NewContext(r.Request)
+	key := datastore.NewKey(c, "User", "", int64(id), nil)
+	var user User
+	datastoreRestGet(c, key, w, &user)
+}
+
+func getAllUsers(w rest.ResponseWriter, r *rest.Request) {
+	users := []User{}
+	c := appengine.NewContext(r.Request)
+	q := datastore.NewQuery("User")
+	for t := q.Run(c); ; {
+		var u User
+		key, err := t.Next(&u)
+		if err == datastore.Done {
+			break
+		}
+		if err != nil {
+			rest.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		u.ID = key.IntID()
+		users = append(users, u)
+	}
+	w.WriteJson(&users)
+}
+
+func postUser(w rest.ResponseWriter, r *rest.Request) {
+	user := User{}
+	err := user.DecodeJsonPayload(r)
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	c := appengine.NewContext(r.Request)
+	key := datastore.NewIncompleteKey(c, "User", nil)
+	newKey, err := datastore.Put(c, key, &user)
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	user.ID = newKey.IntID()
+	writeJson(w, user)
+}
+
+func deleteUser(w rest.ResponseWriter, r *rest.Request) {
+	c := appengine.NewContext(r.Request)
+	id, err := strconv.Atoi(r.PathParam("id"))
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	key := datastore.NewKey(c, "User", "", int64(id), nil)
+	err = datastore.Delete(c, key)
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
