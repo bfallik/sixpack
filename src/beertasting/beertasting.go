@@ -55,6 +55,20 @@ type Config struct {
 	Whitelist    []string
 }
 
+type IDKeyer interface {
+	PathParamID() string
+	Kind() string
+}
+
+func datastoreKey(r *rest.Request, keyer IDKeyer, parent *datastore.Key) (*datastore.Key, error) {
+	id, err := strconv.Atoi(r.PathParam(keyer.PathParamID()))
+	if err != nil {
+		return nil, err
+	}
+	c := appengine.NewContext(r.Request)
+	return datastore.NewKey(c, keyer.Kind(), "", int64(id), parent), nil
+}
+
 type User struct {
 	ID    int64 `datastore:"-"`
 	Name  string
@@ -74,13 +88,16 @@ func (user *User) DecodeJsonPayload(r *rest.Request) error {
 	return nil
 }
 
-func (User) DatastoreKey(r *rest.Request) (*datastore.Key, error) {
-	id, err := strconv.Atoi(r.PathParam("id"))
-	if err != nil {
-		return nil, err
-	}
-	c := appengine.NewContext(r.Request)
-	return datastore.NewKey(c, "User", "", int64(id), nil), nil
+func (User) PathParamID() string {
+	return "id"
+}
+
+func (User) Kind() string {
+	return "User"
+}
+
+func (user User) DatastoreKey(r *rest.Request) (*datastore.Key, error) {
+	return datastoreKey(r, user, nil)
 }
 
 func (user *User) DatastoreGet(r *rest.Request) (int, error) {
@@ -132,17 +149,20 @@ func (cellar *Cellar) DecodeJsonPayload(r *rest.Request) error {
 	return nil
 }
 
-func (Cellar) DatastoreKey(r *rest.Request) (*datastore.Key, error) {
-	cellarID, err := strconv.Atoi(r.PathParam("cellar_id"))
-	if err != nil {
-		return nil, err
-	}
+func (Cellar) PathParamID() string {
+	return "cellar_id"
+}
+
+func (Cellar) Kind() string {
+	return "Cellar"
+}
+
+func (cellar Cellar) DatastoreKey(r *rest.Request) (*datastore.Key, error) {
 	userKey, err := User{}.DatastoreKey(r)
 	if err != nil {
 		return nil, err
 	}
-	c := appengine.NewContext(r.Request)
-	return datastore.NewKey(c, "Cellar", "", int64(cellarID), userKey), nil
+	return datastoreKey(r, cellar, userKey)
 }
 
 func (cellar *Cellar) DatastoreGet(r *rest.Request) (int, error) {
@@ -199,17 +219,20 @@ func (beer *Beer) DecodeJsonPayload(r *rest.Request) error {
 	return nil
 }
 
-func (Beer) DatastoreKey(r *rest.Request) (*datastore.Key, error) {
-	beerID, err := strconv.Atoi(r.PathParam("beer_id"))
-	if err != nil {
-		return nil, err
-	}
+func (Beer) PathParamID() string {
+	return "beer_id"
+}
+
+func (Beer) Kind() string {
+	return "Beer"
+}
+
+func (beer Beer) DatastoreKey(r *rest.Request) (*datastore.Key, error) {
 	cellarKey, err := Cellar{}.DatastoreKey(r)
 	if err != nil {
 		return nil, err
 	}
-	c := appengine.NewContext(r.Request)
-	return datastore.NewKey(c, "Beer", "", int64(beerID), cellarKey), nil
+	return datastoreKey(r, beer, cellarKey)
 }
 
 func (beer *Beer) DatastoreGet(r *rest.Request) (int, error) {
