@@ -21,13 +21,31 @@ var (
 	endpoint = url.URL{Scheme: "http", Host: "api.untappd.com", Path: "v4"}
 )
 
+type AppengineMiddleware struct{}
+
+func (AppengineMiddleware) MiddlewareFunc(handler rest.HandlerFunc) rest.HandlerFunc {
+	return func(w rest.ResponseWriter, r *rest.Request) {
+		c := appengine.NewContext(r.Request)
+		u := user.Current(c)
+		if u == nil {
+			rest.Error(w, "Not Authorized", http.StatusUnauthorized)
+			return
+		}
+		handler(w, r)
+	}
+}
+
 func init() {
 	http.HandleFunc("/", handler)
 	http.HandleFunc("/search", searchHandler)
 	http.HandleFunc("/feed", feedHandler)
 	http.HandleFunc("/displayFeed", displayFeedHandler)
 	http.HandleFunc("/oauth/untappd", oauthUntappdHandler)
-	restHandler := rest.ResourceHandler{}
+	restHandler := rest.ResourceHandler{
+		PreRoutingMiddlewares: []rest.Middleware{
+			&AppengineMiddleware{},
+		},
+	}
 	restHandler.SetRoutes(
 		&rest.Route{"GET", "/admin/config", getAdminConfig},
 		&rest.Route{"PUT", "/admin/config", putAdminConfig},
