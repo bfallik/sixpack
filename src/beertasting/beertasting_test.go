@@ -5,7 +5,8 @@ import (
 	"appengine/datastore"
 	"encoding/json"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/http"
+	httptest "github.com/stretchr/testify/http"
+	"net/http"
 	"testing"
 )
 
@@ -19,7 +20,7 @@ func Test_configKey(t *testing.T) {
 }
 
 type mockResponseWriter struct {
-	http.TestResponseWriter
+	httptest.TestResponseWriter
 	t *testing.T
 }
 
@@ -62,12 +63,12 @@ func Test_datastoreRestGet(t *testing.T) {
 	c := mustNewContext(nil)
 	defer c.Close()
 	var cfg Config
-	var w = mockResponseWriter{t: t}
-	datastoreRestGet(c, configKey(c), &w, &cfg)
-	assert.Equal(t, `{"Error":"datastore: no such entity"}`, w.Output)
-	w.Output = ""
+	status, err := datastoreRestGet(c, configKey(c), &cfg)
+	assert.Equal(t, http.StatusInternalServerError, status)
+	assert.Error(t, err)
 	cfg.ClientSecret = "foo"
 	mustPut(t, c, &cfg)
-	datastoreRestGet(c, configKey(c), &w, &cfg)
-	assert.Equal(t, `{"ClientId":"","ClientSecret":"foo","Whitelist":null}`, w.Output)
+	status, err = datastoreRestGet(c, configKey(c), &cfg)
+	assert.Equal(t, http.StatusOK, status)
+	assert.NoError(t, err)
 }

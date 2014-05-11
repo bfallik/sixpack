@@ -293,20 +293,18 @@ func writeJson(w rest.ResponseWriter, v interface{}) {
 	}
 }
 
-func datastoreRestGet(c appengine.Context, k *datastore.Key, w rest.ResponseWriter, v interface{}) {
+func datastoreRestGet(c appengine.Context, k *datastore.Key, v interface{}) (int, error) {
 	if err := datastore.Get(c, k, v); err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return http.StatusInternalServerError, err
 	}
-	writeJson(w, v)
+	return http.StatusOK, nil
 }
 
-func datastoreRestPut(c appengine.Context, k *datastore.Key, w rest.ResponseWriter, v interface{}) {
+func datastoreRestPut(c appengine.Context, k *datastore.Key, v interface{}) (int, error) {
 	if _, err := datastore.Put(c, k, v); err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return http.StatusInternalServerError, err
 	}
-	writeJson(w, v)
+	return http.StatusOK, nil
 }
 
 func putAdminConfigCtx(c appengine.Context, w rest.ResponseWriter, r *rest.Request) {
@@ -317,7 +315,11 @@ func putAdminConfigCtx(c appengine.Context, w rest.ResponseWriter, r *rest.Reque
 		rest.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	datastoreRestPut(c, configKey(c), w, &config)
+	if status, err := datastoreRestPut(c, configKey(c), &config); err != nil {
+		rest.Error(w, err.Error(), status)
+		return
+	}
+	writeJson(w, config)
 }
 
 func putAdminConfig(w rest.ResponseWriter, r *rest.Request) {
@@ -327,7 +329,11 @@ func putAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 
 func getAdminConfigCtx(c appengine.Context, w rest.ResponseWriter) {
 	var config Config
-	datastoreRestGet(c, configKey(c), w, &config)
+	if status, err := datastoreRestGet(c, configKey(c), config); err != nil {
+		rest.Error(w, err.Error(), status)
+		return
+	}
+	writeJson(w, config)
 }
 
 func getAdminConfig(w rest.ResponseWriter, r *rest.Request) {
@@ -344,7 +350,11 @@ func getUser(w rest.ResponseWriter, r *rest.Request) {
 	c := appengine.NewContext(r.Request)
 	key := datastore.NewKey(c, "User", "", int64(id), nil)
 	var user User
-	datastoreRestGet(c, key, w, &user)
+	if status, err := datastoreRestGet(c, key, &user); err != nil {
+		rest.Error(w, err.Error(), status)
+		return
+	}
+	writeJson(w, user)
 }
 
 func getAllUsers(w rest.ResponseWriter, r *rest.Request) {
@@ -415,7 +425,11 @@ func getCellar(w rest.ResponseWriter, r *rest.Request) {
 	userKey := datastore.NewKey(c, "User", "", int64(id), nil)
 	key := datastore.NewKey(c, "Cellar", "", int64(cellarId), userKey)
 	var cellar Cellar
-	datastoreRestGet(c, key, w, &cellar)
+	if status, err := datastoreRestGet(c, key, &cellar); err != nil {
+		rest.Error(w, err.Error(), status)
+		return
+	}
+	writeJson(w, cellar)
 }
 
 func getAllCellars(w rest.ResponseWriter, r *rest.Request) {
