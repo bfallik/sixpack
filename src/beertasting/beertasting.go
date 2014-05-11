@@ -31,6 +31,10 @@ func init() {
 		&rest.Route{"POST", "/users", postUser},
 		&rest.Route{"GET", "/users/:id", getUser},
 		&rest.Route{"DELETE", "/users/:id", deleteUser},
+		&rest.Route{"GET", "/users/:id/cellars", getAllCellars},
+		&rest.Route{"POST", "/users/:id/cellars", postCellar},
+		&rest.Route{"GET", "/users/:id/cellars/:cellar_id", getCellar},
+		&rest.Route{"DELETE", "/users/:id/cellars/:cellar_id", deleteCellar},
 	)
 	http.Handle("/admin/config", &restHandler)
 	http.Handle("/users", &restHandler)
@@ -63,6 +67,22 @@ func (user *User) DecodeJsonPayload(r *rest.Request) error {
 	}
 	if user.Email == "" {
 		return fmt.Errorf("email required")
+	}
+	return nil
+}
+
+type Cellar struct {
+	ID   int64 `datastore:"-"`
+	Name string
+}
+
+func (cellar *Cellar) DecodeJsonPayload(r *rest.Request) error {
+	err := r.DecodeJsonPayload(cellar)
+	if err != nil {
+		return err
+	}
+	if cellar.Name == "" {
+		return fmt.Errorf("name required")
 	}
 	return nil
 }
@@ -373,6 +393,95 @@ func deleteUser(w rest.ResponseWriter, r *rest.Request) {
 		return
 	}
 	key := datastore.NewKey(c, "User", "", int64(id), nil)
+	err = datastore.Delete(c, key)
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func getCellar(w rest.ResponseWriter, r *rest.Request) {
+	id, err := strconv.Atoi(r.PathParam("id"))
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	cellarId, err := strconv.Atoi(r.PathParam("cellar_id"))
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	c := appengine.NewContext(r.Request)
+	userKey := datastore.NewKey(c, "User", "", int64(id), nil)
+	key := datastore.NewKey(c, "Cellar", "", int64(cellarId), userKey)
+	var cellar Cellar
+	datastoreRestGet(c, key, w, &cellar)
+}
+
+func getAllCellars(w rest.ResponseWriter, r *rest.Request) {
+	id, err := strconv.Atoi(r.PathParam("id"))
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	cellars := []Cellar{}
+	c := appengine.NewContext(r.Request)
+	userKey := datastore.NewKey(c, "User", "", int64(id), nil)
+	q := datastore.NewQuery("Cellar").Ancestor(userKey)
+	for t := q.Run(c); ; {
+		var c Cellar
+		key, err := t.Next(&c)
+		if err == datastore.Done {
+			break
+		}
+		if err != nil {
+			rest.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		c.ID = key.IntID()
+		cellars = append(cellars, c)
+	}
+	w.WriteJson(&cellars)
+}
+
+func postCellar(w rest.ResponseWriter, r *rest.Request) {
+	id, err := strconv.Atoi(r.PathParam("id"))
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	cellar := Cellar{}
+	err = cellar.DecodeJsonPayload(r)
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	c := appengine.NewContext(r.Request)
+	userKey := datastore.NewKey(c, "User", "", int64(id), nil)
+	key := datastore.NewIncompleteKey(c, "Cellar", userKey)
+	newKey, err := datastore.Put(c, key, &cellar)
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	cellar.ID = newKey.IntID()
+	writeJson(w, cellar)
+}
+
+func deleteCellar(w rest.ResponseWriter, r *rest.Request) {
+	id, err := strconv.Atoi(r.PathParam("id"))
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	cellarId, err := strconv.Atoi(r.PathParam("cellar_id"))
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	c := appengine.NewContext(r.Request)
+	userKey := datastore.NewKey(c, "User", "", int64(id), nil)
+	key := datastore.NewKey(c, "Cellar", "", int64(cellarId), userKey)
 	err = datastore.Delete(c, key)
 	if err != nil {
 		rest.Error(w, err.Error(), http.StatusInternalServerError)
