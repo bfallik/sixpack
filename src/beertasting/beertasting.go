@@ -47,24 +47,24 @@ func init() {
 		},
 	}
 	restHandler.SetRoutes(
-		&rest.Route{"GET", "/admin/config", getAdminConfig},
-		&rest.Route{"PUT", "/admin/config", putAdminConfig},
-		&rest.Route{"GET", "/users", getAllUsers},
-		&rest.Route{"POST", "/users", postUser},
-		&rest.Route{"GET", "/users/:id", getUser},
-		&rest.Route{"DELETE", "/users/:id", deleteUser},
-		&rest.Route{"GET", "/users/:id/cellars", getAllCellars},
-		&rest.Route{"POST", "/users/:id/cellars", postCellar},
-		&rest.Route{"GET", "/users/:id/cellars/:cellar_id", getCellar},
-		&rest.Route{"DELETE", "/users/:id/cellars/:cellar_id", deleteCellar},
-		&rest.Route{"GET", "/users/:id/cellars/:cellar_id/beers", getAllBeers},
-		&rest.Route{"POST", "/users/:id/cellars/:cellar_id/beers", postBeer},
-		&rest.Route{"GET", "/users/:id/cellars/:cellar_id/beers/:beer_id", getBeer},
-		&rest.Route{"DELETE", "/users/:id/cellars/:cellar_id/beers/:beer_id", deleteBeer},
+		&rest.Route{"GET", "/api/admin/config", getAdminConfig},
+		&rest.Route{"PUT", "/api/admin/config", putAdminConfig},
+		&rest.Route{"GET", "/api/users", getAllUsers},
+		&rest.Route{"POST", "/api/users", postUser},
+		&rest.Route{"GET", "/api/users/:id", getUser},
+		&rest.Route{"DELETE", "/api/users/:id", deleteUser},
+		&rest.Route{"GET", "/api/users/:id/cellars", getAllCellars},
+		&rest.Route{"POST", "/api/users/:id/cellars", postCellar},
+		&rest.Route{"GET", "/api/users/:id/cellars/:cellar_id", getCellar},
+		&rest.Route{"DELETE", "/api/users/:id/cellars/:cellar_id", deleteCellar},
+		&rest.Route{"GET", "/api/users/:id/cellars/:cellar_id/beers", getAllBeers},
+		&rest.Route{"POST", "/api/users/:id/cellars/:cellar_id/beers", postBeer},
+		&rest.Route{"GET", "/api/users/:id/cellars/:cellar_id/beers/:beer_id", getBeer},
+		&rest.Route{"DELETE", "/api/users/:id/cellars/:cellar_id/beers/:beer_id", deleteBeer},
 	)
-	http.Handle("/admin/config", &restHandler)
-	http.Handle("/users", &restHandler)
-	http.Handle("/users/", &restHandler)
+	http.Handle("/api/admin/config", &restHandler)
+	http.Handle("/api/users", &restHandler)
+	http.Handle("/api/users/", &restHandler)
 }
 
 type Config struct {
