@@ -330,11 +330,28 @@ func userLoggedIn(r *http.Request, w http.ResponseWriter) (*user.User, bool) {
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	user, ok := userLoggedIn(r, w)
+	u, ok := userLoggedIn(r, w)
 	if !ok {
 		return
 	}
-	fmt.Fprintf(w, "Welcome, %s", user)
+	t, err := template.ParseFiles("templates/index.html")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	c := appengine.NewContext(r)
+	logoutURL, err := user.LogoutURL(c, r.URL.String())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s := struct{ Name, LogoutURL string }{
+		u.String(),
+		logoutURL,
+	}
+	if err := t.Execute(w, s); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func searchHandler(w http.ResponseWriter, r *http.Request) {
