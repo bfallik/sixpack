@@ -539,7 +539,7 @@ func putAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 func getAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 	var config Config
 	c := appengine.NewContext(r.Request)
-	if status, err := datastoreRestGet(c, configKey(c), config); err != nil {
+	if status, err := datastoreRestGet(c, configKey(c), &config); err != nil {
 		rest.Error(w, err.Error(), status)
 		return
 	}
