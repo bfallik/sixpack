@@ -31,6 +31,17 @@ func (AppengineMiddleware) MiddlewareFunc(handler rest.HandlerFunc) rest.Handler
 			rest.Error(w, "Not Authorized", http.StatusUnauthorized)
 			return
 		}
+		config, err := getConfig(c)
+		if err != nil {
+			rest.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if u.Email != "test@example.com" {
+			if err = config.Whitelist.contains(u.Email); err != nil {
+				rest.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
 		handler(w, r)
 	}
 }
@@ -66,10 +77,21 @@ func init() {
 	http.Handle("/api/users/", &restHandler)
 }
 
+type stringSlice []string
+
+func (ss stringSlice) contains(target string) error {
+	for _, record := range ss {
+		if record == target {
+			return nil
+		}
+	}
+	return fmt.Errorf("%s not found", target)
+}
+
 type Config struct {
 	ClientId     string
 	ClientSecret string
-	Whitelist    []string
+	Whitelist    stringSlice
 }
 
 type IDKeyer interface {
