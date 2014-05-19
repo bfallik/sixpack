@@ -37,7 +37,6 @@ func (AppengineMiddleware) MiddlewareFunc(handler rest.HandlerFunc) rest.Handler
 
 func init() {
 	http.HandleFunc("/", handler)
-	http.HandleFunc("/search", searchHandler)
 	http.HandleFunc("/feed", feedHandler)
 	http.HandleFunc("/displayFeed", displayFeedHandler)
 	http.HandleFunc("/oauth/untappd", oauthUntappdHandler)
@@ -348,50 +347,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	s := struct{ Name, LogoutURL string }{
 		u.String(),
 		logoutURL,
-	}
-	if err := t.Execute(w, s); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
-func searchHandler(w http.ResponseWriter, r *http.Request) {
-	user, ok := userLoggedIn(r, w)
-	if !ok {
-		return
-	}
-	var err error
-	var config Config
-	c := appengine.NewContext(r)
-	if config, err = getConfig(c); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if len(config.Whitelist) == 0 {
-		c.Infof("whitelist not found, using test@example.com")
-		config.Whitelist = []string{"test@example.com"}
-	}
-	found := false
-	for _, record := range config.Whitelist {
-		if record == user.Email {
-			found = true
-			break
-		}
-	}
-	if !found {
-		http.Error(w, fmt.Sprintf("user %s not in whitelist", user), http.StatusInternalServerError)
-		return
-	}
-
-	t, err := template.ParseFiles("templates/trial1.html")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	s := struct{ Name, Endpoint, ClientId, ClientSecret string }{
-		user.String(),
-		endpoint.String(),
-		config.ClientId,
-		config.ClientSecret,
 	}
 	if err := t.Execute(w, s); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
