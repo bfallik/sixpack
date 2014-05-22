@@ -19,10 +19,30 @@ handlers:
   static_files: static/\1
   upload: static/js/(.*\.js)
 
-- url: /(css/.*\.css)
+- url: /(css/.*\.(css|map))
   mime_type: text/css
   static_files: static/\1
-  upload: static/css/(.*\.css)
+  upload: static/css/(.*\.(css|map))
+
+- url: /(fonts/.*\.eot)
+  mime_type: application/vnd.ms-fontobject
+  static_files: static/\1
+  upload: static/fonts/(.*\.eot)
+
+- url: /(fonts/.*\.(svg|svgz))
+  mime_type: images/svg+xml
+  static_files: static/\1
+  upload: static/fonts/(.*\.(svg|svgz))
+
+- url: /(fonts/.*\.ttf)
+  mime_type: font/truetype
+  static_files: static/\1
+  upload: static/fonts/(.*\.ttf)
+
+- url: /(fonts/.*\.woff)
+  mime_type: application/x-font-woff
+  static_files: static/\1
+  upload: static/fonts/(.*\.woff)
 
 - url: /
   static_files: static/index.html
