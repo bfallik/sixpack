@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -58,6 +59,7 @@ func init() {
 	http.HandleFunc("/feed", feedHandler)
 	http.HandleFunc("/displayFeed", displayFeedHandler)
 	http.HandleFunc("/oauth/untappd", oauthUntappdHandler)
+	http.HandleFunc("/api/untappd/noauth/", untappdNoAuth)
 	restHandler := rest.ResourceHandler{
 		PreRoutingMiddlewares: []rest.Middleware{
 			&AppengineMiddleware{},
@@ -687,4 +689,60 @@ func deleteBeer(w rest.ResponseWriter, r *rest.Request) {
 		rest.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func noAuthUntappdURL(r *http.Request, path string) (url.URL, error) {
+	c := appengine.NewContext(r)
+	config, err := getConfig(c)
+	if err != nil {
+		return url.URL{}, err
+	}
+	res := endpoint
+	res.RawQuery = r.URL.RawQuery
+	q := res.Query()
+	q.Add("client_id", config.ClientId)
+	q.Add("client_secret", config.ClientSecret)
+	res.RawQuery = q.Encode()
+	res.Path += path
+	return res, nil
+}
+
+func untappdNoAuth(w http.ResponseWriter, r *http.Request) {
+	if err := isAuthorized(r); err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	relPath := strings.TrimPrefix(r.URL.Path, "/api/untappd/noauth")
+	var reqURL url.URL
+	c := appengine.NewContext(r)
+	if r.Method == "GET" {
+		switch relPath {
+		case "/search/beer":
+			var err error
+			if reqURL, err = noAuthUntappdURL(r, relPath); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}
+	client := urlfetch.Client(c)
+	resp, err := client.Get(reqURL.String())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	for k, v := range resp.Header {
+		w.Header()[k] = v
+	}
+	w.WriteHeader(resp.StatusCode)
+	w.Write(body)
 }
