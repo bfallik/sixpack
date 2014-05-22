@@ -358,6 +358,23 @@ func userLoggedIn(r *http.Request, w http.ResponseWriter) (*user.User, bool) {
 	return nil, false
 }
 
+func logoutHandler(w http.ResponseWriter, r *http.Request) {
+	_, ok := userLoggedIn(r, w)
+	if !ok {
+		return
+	}
+	c := appengine.NewContext(r)
+	newURL := r.URL
+	newURL.Path = "/"
+	u, err := user.LogoutURL(c, newURL.String())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, u, http.StatusFound)
+	return
+}
+
 func oauthUntappdHandler(w http.ResponseWriter, r *http.Request) {
 	_, ok := userLoggedIn(r, w)
 	if !ok {
