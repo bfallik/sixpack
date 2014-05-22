@@ -31,7 +31,7 @@ func isAuthorized(r *http.Request) error {
 		return fmt.Errorf("Not Authorized")
 	}
 	if config, err := getConfig(c); err != nil {
-		if r.Method == "POST" && r.URL.Path == "/api/config/untappd" {
+		if r.Method == "POST" && r.URL.Path == "/api/admin/config" {
 			return nil
 		}
 		if u.Email == "test@example.com" {
