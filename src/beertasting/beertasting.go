@@ -23,24 +23,31 @@ var (
 
 type AppengineMiddleware struct{}
 
+func isAuthorized(r *http.Request) error {
+	c := appengine.NewContext(r)
+	u := user.Current(c)
+	if u == nil {
+		return fmt.Errorf("Not Authorized")
+	}
+	if config, err := getConfig(c); err != nil {
+		if r.Method == "POST" && r.URL.Path == "/api/config/untappd" {
+			return nil
+		}
+		if u.Email == "test@example.com" {
+			return nil
+		}
+		if err = config.Whitelist.contains(u.Email); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (AppengineMiddleware) MiddlewareFunc(handler rest.HandlerFunc) rest.HandlerFunc {
 	return func(w rest.ResponseWriter, r *rest.Request) {
-		c := appengine.NewContext(r.Request)
-		u := user.Current(c)
-		if u == nil {
-			rest.Error(w, "Not Authorized", http.StatusUnauthorized)
+		if err := isAuthorized(r.Request); err != nil {
+			rest.Error(w, err.Error(), http.StatusUnauthorized)
 			return
-		}
-		config, err := getConfig(c)
-		if err != nil {
-			rest.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if u.Email != "test@example.com" {
-			if err = config.Whitelist.contains(u.Email); err != nil {
-				rest.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
 		}
 		handler(w, r)
 	}
