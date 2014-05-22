@@ -55,7 +55,6 @@ func (AppengineMiddleware) MiddlewareFunc(handler rest.HandlerFunc) rest.Handler
 }
 
 func init() {
-	http.HandleFunc("/", handler)
 	http.HandleFunc("/feed", feedHandler)
 	http.HandleFunc("/displayFeed", displayFeedHandler)
 	http.HandleFunc("/oauth/untappd", oauthUntappdHandler)
@@ -357,31 +356,6 @@ func userLoggedIn(r *http.Request, w http.ResponseWriter) (*user.User, bool) {
 	w.Header().Set("Location", url)
 	w.WriteHeader(http.StatusFound)
 	return nil, false
-}
-
-func handler(w http.ResponseWriter, r *http.Request) {
-	u, ok := userLoggedIn(r, w)
-	if !ok {
-		return
-	}
-	t, err := template.ParseFiles("templates/index.html")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	c := appengine.NewContext(r)
-	logoutURL, err := user.LogoutURL(c, r.URL.String())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	s := struct{ Name, LogoutURL string }{
-		u.String(),
-		logoutURL,
-	}
-	if err := t.Execute(w, s); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
 }
 
 func oauthUntappdHandler(w http.ResponseWriter, r *http.Request) {
