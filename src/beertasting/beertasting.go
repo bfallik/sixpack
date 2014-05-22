@@ -54,19 +54,49 @@ func (AppengineMiddleware) MiddlewareFunc(handler rest.HandlerFunc) rest.Handler
 	}
 }
 
+type AppengineAdminMiddleware struct{}
+
+func (AppengineAdminMiddleware) MiddlewareFunc(handler rest.HandlerFunc) rest.HandlerFunc {
+	return func(w rest.ResponseWriter, r *rest.Request) {
+		c := appengine.NewContext(r.Request)
+		if !user.IsAdmin(c) {
+			rest.Error(w, "Not Authorized", http.StatusUnauthorized)
+			return
+		}
+		handler(w, r)
+	}
+}
+
 func init() {
 	http.HandleFunc("/feed", feedHandler)
+	http.HandleFunc("/login", loginHandler)
+	http.HandleFunc("/logout", logoutHandler)
 	http.HandleFunc("/displayFeed", displayFeedHandler)
 	http.HandleFunc("/oauth/untappd", oauthUntappdHandler)
 	http.HandleFunc("/api/untappd/noauth/", untappdNoAuth)
+
+	restNoAuthHandler := rest.ResourceHandler{}
+	restNoAuthHandler.SetRoutes(
+		&rest.Route{"GET", "/api/user/me", getUserMe},
+	)
+
+	restAdminHandler := rest.ResourceHandler{
+		PreRoutingMiddlewares: []rest.Middleware{
+			&AppengineMiddleware{},
+			&AppengineAdminMiddleware{},
+		},
+	}
+	restAdminHandler.SetRoutes(
+		&rest.Route{"GET", "/api/admin/config", getAdminConfig},
+		&rest.Route{"PUT", "/api/admin/config", putAdminConfig},
+	)
+
 	restHandler := rest.ResourceHandler{
 		PreRoutingMiddlewares: []rest.Middleware{
 			&AppengineMiddleware{},
 		},
 	}
 	restHandler.SetRoutes(
-		&rest.Route{"GET", "/api/admin/config", getAdminConfig},
-		&rest.Route{"PUT", "/api/admin/config", putAdminConfig},
 		&rest.Route{"GET", "/api/users", getAllUsers},
 		&rest.Route{"POST", "/api/users", postUser},
 		&rest.Route{"GET", "/api/users/:id", getUser},
@@ -80,7 +110,8 @@ func init() {
 		&rest.Route{"GET", "/api/users/:id/cellars/:cellar_id/beers/:beer_id", getBeer},
 		&rest.Route{"DELETE", "/api/users/:id/cellars/:cellar_id/beers/:beer_id", deleteBeer},
 	)
-	http.Handle("/api/admin/config", &restHandler)
+	http.Handle("/api/admin/config", &restAdminHandler)
+	http.Handle("/api/user/me", &restNoAuthHandler)
 	http.Handle("/api/users", &restHandler)
 	http.Handle("/api/users/", &restHandler)
 }
@@ -358,11 +389,20 @@ func userLoggedIn(r *http.Request, w http.ResponseWriter) (*user.User, bool) {
 	return nil, false
 }
 
-func logoutHandler(w http.ResponseWriter, r *http.Request) {
-	_, ok := userLoggedIn(r, w)
-	if !ok {
+func loginHandler(w http.ResponseWriter, r *http.Request) {
+	c := appengine.NewContext(r)
+	newURL := r.URL
+	newURL.Path = "/"
+	u, err := user.LoginURL(c, newURL.String())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	http.Redirect(w, r, u, http.StatusFound)
+	return
+}
+
+func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
 	newURL := r.URL
 	newURL.Path = "/"
@@ -521,6 +561,25 @@ func getAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 		return
 	}
 	writeJson(w, config)
+}
+
+func getUserMe(w rest.ResponseWriter, r *rest.Request) {
+	c := appengine.NewContext(r.Request)
+	u := user.Current(c)
+	if u == nil {
+		http.Error(w.(http.ResponseWriter), "not signed in", http.StatusNotFound)
+		return
+	}
+	logoutURL, err := user.LogoutURL(c, r.URL.String())
+	if err != nil {
+		http.Error(w.(http.ResponseWriter), err.Error(), http.StatusNotFound)
+		return
+	}
+	writeJson(w, struct {
+		Name      string `json:"name"`
+		Admin     bool   `json:"is_admin"`
+		LogoutURL string `json:"logout_url"`
+	}{u.String(), user.IsAdmin(c), logoutURL})
 }
 
 func getUser(w rest.ResponseWriter, r *rest.Request) {
