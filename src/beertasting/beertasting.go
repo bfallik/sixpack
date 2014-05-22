@@ -379,13 +379,12 @@ func userLoggedIn(r *http.Request, w http.ResponseWriter) (*user.User, bool) {
 	if u != nil {
 		return u, true
 	}
-	url, err := user.LoginURL(c, r.URL.String())
+	ur, err := user.LoginURL(c, r.URL.String())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return nil, false
 	}
-	w.Header().Set("Location", url)
-	w.WriteHeader(http.StatusFound)
+	http.Redirect(w, r, ur, http.StatusFound)
 	return nil, false
 }
 
