@@ -89,8 +89,8 @@ func (ss stringSlice) contains(target string) error {
 }
 
 type Config struct {
-	ClientId     string
-	ClientSecret string
+	ClientId     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
 	Whitelist    stringSlice
 }
 
