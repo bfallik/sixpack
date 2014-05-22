@@ -1,4 +1,5 @@
-var cellarApp = angular.module('cellarApp', ["ngRoute", "ngResource"]);
+var cellarApp = angular.module('cellarApp',
+	["ngRoute", "ngResource", "ui.bootstrap"]);
 
 cellarApp.config(
   function($routeProvider) {
