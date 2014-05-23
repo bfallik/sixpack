@@ -5,8 +5,11 @@ cellarApp.factory('security',
 	['$http', function($http) {
 		var service = {
 			getCurrentUser: function() {
-				var promise = $http.get('/api/user/me').then(function (response) {
-					return response.data;
+				var promise = $http.get('/api/user/me').
+				then(function (response) {
+					return response;
+				}, function (response) {
+					return response;
 				});
 				return promise;
 			}
@@ -32,6 +35,22 @@ cellarApp.config(
   }
 );
 
+cellarApp.controller('navBarCtrl', ["$scope", "security", function ($scope, security) {
+	security.getCurrentUser().then(function(u) {
+		$scope.currentUser = u
+	})
+
+	security.getCurrentUser().then(function(u) {
+		if (u.status == 200) {
+			$scope.authOperation = "/logout";
+			$scope.authText = "Logout";
+		} else if (u.status == 404) {
+			$scope.authOperation = "/login";
+			$scope.authText = "Login";
+		}
+	})
+}]);
+
 cellarApp.controller('searchCtrl', ["$scope", "$resource", "security", function ($scope, $resource, security) {
 	$scope.doSearch = function(query) {
 	var beerSearch = $resource("/api/untappd/noauth/search/beer", {});
@@ -40,7 +59,7 @@ cellarApp.controller('searchCtrl', ["$scope", "$resource", "security", function 
 	})};
 
 	security.getCurrentUser().then(function(u) {
-		$scope.currentUser = u
+		$scope.currentUser = u.data
 	})
 
 	$scope.query = "PBR";
