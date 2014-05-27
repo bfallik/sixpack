@@ -779,6 +779,9 @@ func untappdNoAuth(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
+	} else {
+		http.Error(w, fmt.Sprintf("method %s not found", r.Method), http.StatusInternalServerError)
+		return
 	}
 	client := urlfetch.Client(c)
 	resp, err := client.Get(reqURL.String())
