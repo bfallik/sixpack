@@ -2,7 +2,7 @@
 <input ng-model="query">
 <button ng-click='doSearch(query)'>Search</button>
 <ul>
-    <li data-ng-repeat="beer in beers.response.beers.items">{{beer.beer.beer_name}} {{beer.beer.beer_abv}} {{beer.beer.beer_style}}</li>
+    <li data-ng-repeat="item in beers.response.beers.items"><img ng-src="{{item.beer.beer_label}}" alt="Smiley face" height="42" width="42"> {{item.beer.beer_name}}, {{item.beer.beer_style}}, {{item.beer.beer_abv}} <img ng-src="{{item.brewery.brewery_label}}"> <a href="{{item.brewery.contact.url}}">{{item.brewery.brewery_name}}</a></li>
 </ul>
 <!-- <pre>{{beers.response.beers | json}}</pre> !-->
 Welcome {{currentUser.name || "Anon"}}
