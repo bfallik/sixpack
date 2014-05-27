@@ -358,8 +358,10 @@ func configKey(c appengine.Context) *datastore.Key {
 
 func getConfig(c appengine.Context) (Config, error) {
 	var cfg Config
-	err := datastore.Get(c, configKey(c), &cfg)
-	return cfg, err
+	if err := datastore.Get(c, configKey(c), &cfg); err != nil {
+		return Config{}, fmt.Errorf("getConfig(): %v", err)
+	}
+	return cfg, nil
 }
 
 func httpCallback(c appengine.Context, path string) *url.URL {
