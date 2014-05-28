@@ -613,8 +613,12 @@ func postUser(w rest.ResponseWriter, r *rest.Request) {
 	writeJson(w, user)
 }
 
-func deleteUser(w rest.ResponseWriter, r *rest.Request) {
-	key, err := User{}.DatastoreKey(r)
+type RestKeyer interface {
+	DatastoreKey(r *rest.Request) (*datastore.Key, error)
+}
+
+func restDelete(w rest.ResponseWriter, r *rest.Request, keyer RestKeyer) {
+	key, err := keyer.DatastoreKey(r)
 	if err != nil {
 		rest.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -625,6 +629,10 @@ func deleteUser(w rest.ResponseWriter, r *rest.Request) {
 		rest.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func deleteUser(w rest.ResponseWriter, r *rest.Request) {
+	restDelete(w, r, User{})
 }
 
 func getCellar(w rest.ResponseWriter, r *rest.Request) {
@@ -669,17 +677,7 @@ func postCellar(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func deleteCellar(w rest.ResponseWriter, r *rest.Request) {
-	key, err := Cellar{}.DatastoreKey(r)
-	if err != nil {
-		rest.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	c := appengine.NewContext(r.Request)
-	err = datastore.Delete(c, key)
-	if err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	restDelete(w, r, Cellar{})
 }
 
 func getBeer(w rest.ResponseWriter, r *rest.Request) {
@@ -723,17 +721,7 @@ func postBeer(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func deleteBeer(w rest.ResponseWriter, r *rest.Request) {
-	key, err := Beer{}.DatastoreKey(r)
-	if err != nil {
-		rest.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	c := appengine.NewContext(r.Request)
-	err = datastore.Delete(c, key)
-	if err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	restDelete(w, r, Beer{})
 }
 
 func noAuthUntappdURL(r *http.Request, path string) (url.URL, error) {
