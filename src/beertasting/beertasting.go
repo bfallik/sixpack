@@ -589,22 +589,26 @@ func getUserMe(w rest.ResponseWriter, r *rest.Request) {
 	}{u.String(), user.IsAdmin(c), logoutURL})
 }
 
-func getUser(w rest.ResponseWriter, r *rest.Request) {
-	var user User
-	if status, err := user.DatastoreGet(r); err != nil {
+type RestGetter interface {
+	DatastoreGet(r *rest.Request) (int, error)
+}
+
+func restGet(w rest.ResponseWriter, r *rest.Request, val RestGetter) {
+	if status, err := val.DatastoreGet(r); err != nil {
 		rest.Error(w, err.Error(), status)
 		return
 	}
-	writeJson(w, user)
+	writeJson(w, val)
+}
+
+func getUser(w rest.ResponseWriter, r *rest.Request) {
+	var user User
+	restGet(w, r, &user)
 }
 
 func getAllUsers(w rest.ResponseWriter, r *rest.Request) {
 	var users Users
-	if status, err := users.DatastoreGet(r); err != nil {
-		rest.Error(w, err.Error(), status)
-		return
-	}
-	w.WriteJson(users)
+	restGet(w, r, &users)
 }
 
 type RestPutter interface {
@@ -659,20 +663,12 @@ func deleteUser(w rest.ResponseWriter, r *rest.Request) {
 
 func getCellar(w rest.ResponseWriter, r *rest.Request) {
 	var cellar Cellar
-	if status, err := cellar.DatastoreGet(r); err != nil {
-		rest.Error(w, err.Error(), status)
-		return
-	}
-	writeJson(w, cellar)
+	restGet(w, r, &cellar)
 }
 
 func getAllCellars(w rest.ResponseWriter, r *rest.Request) {
 	var cellars Cellars
-	if status, err := cellars.DatastoreGet(r); err != nil {
-		rest.Error(w, err.Error(), status)
-		return
-	}
-	w.WriteJson(cellars)
+	restGet(w, r, &cellars)
 }
 
 func postCellar(w rest.ResponseWriter, r *rest.Request) {
@@ -691,20 +687,12 @@ func deleteCellar(w rest.ResponseWriter, r *rest.Request) {
 
 func getBeer(w rest.ResponseWriter, r *rest.Request) {
 	var beer Beer
-	if status, err := beer.DatastoreGet(r); err != nil {
-		rest.Error(w, err.Error(), status)
-		return
-	}
-	writeJson(w, beer)
+	restGet(w, r, &beer)
 }
 
 func getAllBeers(w rest.ResponseWriter, r *rest.Request) {
 	var beers Beers
-	if status, err := beers.DatastoreGet(r); err != nil {
-		rest.Error(w, err.Error(), status)
-		return
-	}
-	w.WriteJson(beers)
+	restGet(w, r, &beers)
 }
 
 func postBeer(w rest.ResponseWriter, r *rest.Request) {
