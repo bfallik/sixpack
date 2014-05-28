@@ -175,8 +175,9 @@ func (User) Kind() string {
 	return "User"
 }
 
-func (u *User) SetID(id int64) {
-	u.ID = id
+func (u User) WriteJson(w rest.ResponseWriter, key *datastore.Key) {
+	u.ID = key.IntID()
+	writeJson(w, u)
 }
 
 func (user User) DatastoreKey(r *rest.Request) (*datastore.Key, error) {
@@ -240,8 +241,9 @@ func (Cellar) Kind() string {
 	return "Cellar"
 }
 
-func (c *Cellar) SetID(id int64) {
-	c.ID = id
+func (c Cellar) WriteJson(w rest.ResponseWriter, key *datastore.Key) {
+	c.ID = key.IntID()
+	writeJson(w, c)
 }
 
 func (cellar Cellar) DatastoreKey(r *rest.Request) (*datastore.Key, error) {
@@ -314,8 +316,9 @@ func (Beer) Kind() string {
 	return "Beer"
 }
 
-func (b *Beer) SetID(id int64) {
-	b.ID = id
+func (b Beer) WriteJson(w rest.ResponseWriter, key *datastore.Key) {
+	b.ID = key.IntID()
+	writeJson(w, b)
 }
 
 func (beer Beer) DatastoreKey(r *rest.Request) (*datastore.Key, error) {
@@ -613,7 +616,7 @@ func getAllUsers(w rest.ResponseWriter, r *rest.Request) {
 
 type RestPutter interface {
 	DecodeJsonPayload(r *rest.Request) error
-	SetID(id int64)
+	WriteJson(w rest.ResponseWriter, key *datastore.Key)
 	IDKeyer
 }
 
@@ -630,8 +633,7 @@ func restPost(w rest.ResponseWriter, r *rest.Request, val RestPutter, parentKey 
 		rest.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	val.SetID(newKey.IntID())
-	writeJson(w, val)
+	val.WriteJson(w, newKey)
 }
 
 func postUser(w rest.ResponseWriter, r *rest.Request) {
