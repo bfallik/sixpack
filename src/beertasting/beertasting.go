@@ -175,6 +175,10 @@ func (User) Kind() string {
 	return "User"
 }
 
+func (u *User) SetID(id int64) {
+	u.ID = id
+}
+
 func (user User) DatastoreKey(r *rest.Request) (*datastore.Key, error) {
 	return datastoreKey(r, user, nil)
 }
@@ -234,6 +238,10 @@ func (Cellar) PathParamID() string {
 
 func (Cellar) Kind() string {
 	return "Cellar"
+}
+
+func (c *Cellar) SetID(id int64) {
+	c.ID = id
 }
 
 func (cellar Cellar) DatastoreKey(r *rest.Request) (*datastore.Key, error) {
@@ -304,6 +312,10 @@ func (Beer) PathParamID() string {
 
 func (Beer) Kind() string {
 	return "Beer"
+}
+
+func (b *Beer) SetID(id int64) {
+	b.ID = id
 }
 
 func (beer Beer) DatastoreKey(r *rest.Request) (*datastore.Key, error) {
@@ -595,22 +607,32 @@ func getAllUsers(w rest.ResponseWriter, r *rest.Request) {
 	w.WriteJson(users)
 }
 
-func postUser(w rest.ResponseWriter, r *rest.Request) {
-	user := User{}
-	err := user.DecodeJsonPayload(r)
+type RestPutter interface {
+	DecodeJsonPayload(r *rest.Request) error
+	SetID(id int64)
+	IDKeyer
+}
+
+func restPost(w rest.ResponseWriter, r *rest.Request, val RestPutter, parentKey *datastore.Key) {
+	err := val.DecodeJsonPayload(r)
 	if err != nil {
 		rest.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	c := appengine.NewContext(r.Request)
-	key := datastore.NewIncompleteKey(c, "User", nil)
-	newKey, err := datastore.Put(c, key, &user)
+	key := datastore.NewIncompleteKey(c, val.Kind(), parentKey)
+	newKey, err := datastore.Put(c, key, val)
 	if err != nil {
 		rest.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	user.ID = newKey.IntID()
-	writeJson(w, user)
+	val.SetID(newKey.IntID())
+	writeJson(w, val)
+}
+
+func postUser(w rest.ResponseWriter, r *rest.Request) {
+	var user User
+	restPost(w, r, &user, nil)
 }
 
 type RestKeyer interface {
@@ -654,26 +676,13 @@ func getAllCellars(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func postCellar(w rest.ResponseWriter, r *rest.Request) {
-	userKey, err := User{}.DatastoreKey(r)
+	parentKey, err := User{}.DatastoreKey(r)
 	if err != nil {
 		rest.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	cellar := Cellar{}
-	err = cellar.DecodeJsonPayload(r)
-	if err != nil {
-		rest.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	c := appengine.NewContext(r.Request)
-	key := datastore.NewIncompleteKey(c, "Cellar", userKey)
-	newKey, err := datastore.Put(c, key, &cellar)
-	if err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	cellar.ID = newKey.IntID()
-	writeJson(w, cellar)
+	var cellar Cellar
+	restPost(w, r, &cellar, parentKey)
 }
 
 func deleteCellar(w rest.ResponseWriter, r *rest.Request) {
@@ -699,25 +708,13 @@ func getAllBeers(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func postBeer(w rest.ResponseWriter, r *rest.Request) {
-	cellarKey, err := Cellar{}.DatastoreKey(r)
+	parentKey, err := Cellar{}.DatastoreKey(r)
 	if err != nil {
 		rest.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	beer := Beer{}
-	if err := beer.DecodeJsonPayload(r); err != nil {
-		rest.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	c := appengine.NewContext(r.Request)
-	key := datastore.NewIncompleteKey(c, "Beer", cellarKey)
-	newKey, err := datastore.Put(c, key, &beer)
-	if err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	beer.ID = newKey.IntID()
-	writeJson(w, beer)
+	var beer Beer
+	restPost(w, r, &beer, parentKey)
 }
 
 func deleteBeer(w rest.ResponseWriter, r *rest.Request) {
