@@ -185,8 +185,8 @@ func (user *User) DatastoreGet(r *rest.Request) (int, error) {
 		return http.StatusBadRequest, err
 	}
 	c := appengine.NewContext(r.Request)
-	if status, err := datastoreRestGet(c, key, user); err != nil {
-		return status, err
+	if err := datastore.Get(c, key, user); err != nil {
+		return http.StatusInternalServerError, err
 	}
 	user.ID = key.IntID()
 	return http.StatusOK, nil
@@ -250,8 +250,8 @@ func (cellar *Cellar) DatastoreGet(r *rest.Request) (int, error) {
 		return http.StatusBadRequest, err
 	}
 	c := appengine.NewContext(r.Request)
-	if status, err := datastoreRestGet(c, key, cellar); err != nil {
-		return status, err
+	if err := datastore.Get(c, key, cellar); err != nil {
+		return http.StatusInternalServerError, err
 	}
 	cellar.ID = key.IntID()
 	return http.StatusOK, nil
@@ -320,8 +320,8 @@ func (beer *Beer) DatastoreGet(r *rest.Request) (int, error) {
 		return http.StatusBadRequest, err
 	}
 	c := appengine.NewContext(r.Request)
-	if status, err := datastoreRestGet(c, key, beer); err != nil {
-		return status, err
+	if err := datastore.Get(c, key, beer); err != nil {
+		return http.StatusInternalServerError, err
 	}
 	beer.ID = key.IntID()
 	return http.StatusOK, nil
@@ -532,13 +532,6 @@ func writeJson(w rest.ResponseWriter, v interface{}) {
 	}
 }
 
-func datastoreRestGet(c appengine.Context, k *datastore.Key, v interface{}) (int, error) {
-	if err := datastore.Get(c, k, v); err != nil {
-		return http.StatusInternalServerError, err
-	}
-	return http.StatusOK, nil
-}
-
 func putAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 	var config Config
 	c := appengine.NewContext(r.Request)
@@ -558,8 +551,8 @@ func putAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 func getAdminConfig(w rest.ResponseWriter, r *rest.Request) {
 	var config Config
 	c := appengine.NewContext(r.Request)
-	if status, err := datastoreRestGet(c, configKey(c), &config); err != nil {
-		rest.Error(w, err.Error(), status)
+	if err := datastore.Get(c, configKey(c), &config); err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	writeJson(w, config)
