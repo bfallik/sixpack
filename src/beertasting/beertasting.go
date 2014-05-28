@@ -579,7 +579,7 @@ func getUserMe(w rest.ResponseWriter, r *rest.Request) {
 	}
 	writeJson(w, struct {
 		Name      string `json:"name"`
-		Admin     bool   `json:"is_admin"`
+		IsAdmin   bool   `json:"is_admin"`
 		LogoutURL string `json:"logout_url"`
 	}{u.String(), user.IsAdmin(c), logoutURL})
 }
