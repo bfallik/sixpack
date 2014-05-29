@@ -5,6 +5,7 @@ import (
 	"appengine/datastore"
 	"appengine/urlfetch"
 	"appengine/user"
+	"code.google.com/p/go-uuid/uuid"
 	"encoding/json"
 	"fmt"
 	"github.com/ant0ine/go-json-rest/rest"
@@ -90,6 +91,9 @@ func init() {
 	restAdminHandler.SetRoutes(
 		&rest.Route{"GET", "/api/admin/config", getAdminConfig},
 		&rest.Route{"PUT", "/api/admin/config", putAdminConfig},
+		&rest.Route{"GET", "/api/admin/user-tokens", getAdminAllUserTokens},
+		&rest.Route{"POST", "/api/admin/user-tokens", postAdminUserTokens},
+		&rest.Route{"DELETE", "/api/admin/user-tokens/:token", deleteAdminUserTokens},
 	)
 
 	restHandler := rest.ResourceHandler{
@@ -112,6 +116,8 @@ func init() {
 		&rest.Route{"DELETE", "/api/users/:id/cellars/:cellar_id/beers/:beer_id", deleteBeer},
 	)
 	http.Handle("/api/admin/config", &restAdminHandler)
+	http.Handle("/api/admin/user-tokens", &restAdminHandler)
+	http.Handle("/api/admin/user-tokens/", &restAdminHandler)
 	http.Handle("/api/user/me", &restNoAuthHandler)
 	http.Handle("/api/users", &restHandler)
 	http.Handle("/api/users/", &restHandler)
@@ -146,6 +152,50 @@ func datastoreKey(r *rest.Request, keyer IDKeyer, parent *datastore.Key) (*datas
 	}
 	c := appengine.NewContext(r.Request)
 	return datastore.NewKey(c, keyer.Kind(), "", int64(id), parent), nil
+}
+
+type UserToken struct {
+	ID   int64 `datastore:"-"`
+	Hash string
+}
+
+func (token *UserToken) DecodeJsonPayload(*rest.Request) error {
+	token.Hash = uuid.NewRandom().String()
+	return nil
+}
+
+type UserTokens []UserToken
+
+func (tokens *UserTokens) DatastoreGet(r *rest.Request) (int, error) {
+	c := appengine.NewContext(r.Request)
+	*tokens = UserTokens{}
+	q := datastore.NewQuery("UserToken")
+	for t := q.Run(c); ; {
+		var ut UserToken
+		key, err := t.Next(&ut)
+		if err == datastore.Done {
+			break
+		}
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+		ut.ID = key.IntID()
+		*tokens = append(*tokens, ut)
+	}
+	return http.StatusOK, nil
+}
+
+func (UserToken) PathParamID() string {
+	return "token"
+}
+
+func (UserToken) Kind() string {
+	return "UserToken"
+}
+
+func (ut UserToken) WriteJson(w rest.ResponseWriter, key *datastore.Key) {
+	ut.ID = key.IntID()
+	writeJson(w, ut)
 }
 
 type User struct {
@@ -768,4 +818,43 @@ func untappdNoAuth(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(resp.StatusCode)
 	w.Write(body)
+}
+
+func getAdminAllUserTokens(w rest.ResponseWriter, r *rest.Request) {
+	var tokens UserTokens
+	restGet(w, r, &tokens)
+}
+
+func postAdminUserTokens(w rest.ResponseWriter, r *rest.Request) {
+	var token UserToken
+	restPost(w, r, &token, nil)
+}
+
+func deleteAdminUserTokens(w rest.ResponseWriter, r *rest.Request) {
+	token := r.PathParam("token")
+	c := appengine.NewContext(r.Request)
+	q := datastore.NewQuery("UserToken").Filter("Hash =", token)
+	var err error
+	var isDeleted bool
+	for t := q.Run(c); ; {
+		var ut UserToken
+		var key *datastore.Key
+		key, err = t.Next(&ut)
+		if err == datastore.Done {
+			break
+		}
+		if err != nil {
+			goto ice
+		}
+		if err = datastore.Delete(c, key); err != nil {
+			goto ice
+		}
+		isDeleted = true
+	}
+	if !isDeleted {
+		rest.Error(w, "token not found", http.StatusBadRequest)
+	}
+	return
+ice:
+	rest.Error(w, err.Error(), http.StatusInternalServerError)
 }
