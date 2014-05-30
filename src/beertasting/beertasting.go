@@ -74,6 +74,7 @@ func init() {
 	http.HandleFunc("/login", loginHandler)
 	http.HandleFunc("/logout", logoutHandler)
 	http.HandleFunc("/displayFeed", displayFeedHandler)
+	http.HandleFunc("/new-user", newUserHandler)
 	http.HandleFunc("/oauth/untappd", oauthUntappdHandler)
 	http.HandleFunc("/api/untappd/noauth/", untappdNoAuth)
 
@@ -591,6 +592,86 @@ func feedHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+func maybeCreateUser(r *http.Request, u *user.User) (*User, error) {
+	c := appengine.NewContext(r)
+	q := datastore.NewQuery("User").Filter("Email =", u.Email)
+	for t := q.Run(c); ; {
+		var usr User
+		_, err := t.Next(&usr)
+		if err == datastore.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		// TODO: handle >1 result
+		c.Warningf("user %s already exists", u.Email)
+		return &usr, nil
+	}
+	usr := User{Name: u.String(), Email: u.Email}
+	key := datastore.NewIncompleteKey(c, usr.Kind(), nil)
+	if _, err := datastore.Put(c, key, &usr); err != nil {
+		return nil, err
+	}
+	c.Warningf("added user %s", u.Email)
+	return &usr, nil
+}
+
+func lookupTokenKeys(r *http.Request) ([]*datastore.Key, error) {
+	if err := r.ParseForm(); err != nil {
+		return []*datastore.Key{}, err
+	}
+	token := r.FormValue("token")
+	if len(token) == 0 {
+		return []*datastore.Key{}, fmt.Errorf("missing 'token'")
+	}
+	c := appengine.NewContext(r)
+	q := datastore.NewQuery("UserToken").Filter("Hash =", token).KeysOnly()
+	res := []*datastore.Key{}
+	for t := q.Run(c); ; {
+		key, err := t.Next(nil)
+		if err == datastore.Done {
+			break
+		}
+		if err != nil {
+			return []*datastore.Key{}, err
+		}
+		res = append(res, key)
+	}
+	return res, nil
+}
+
+func newUserHandler(w http.ResponseWriter, r *http.Request) {
+	c := appengine.NewContext(r)
+	tokenKeys, err := lookupTokenKeys(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	u := user.Current(c)
+	if u == nil {
+		ur, err := user.LoginURL(c, r.URL.String())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, ur, http.StatusFound)
+		return
+	}
+	if _, err = maybeCreateUser(r, u); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err = datastore.DeleteMulti(c, tokenKeys); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	newURL := r.URL
+	newURL.Path = "/"
+	newURL.RawQuery = ""
+	http.Redirect(w, r, newURL.String(), http.StatusFound)
+}
+
 func writeJson(w rest.ResponseWriter, v interface{}) {
 	if err := w.WriteJson(v); err != nil {
 		rest.Error(w, err.Error(), http.StatusInternalServerError)
@@ -831,30 +912,13 @@ func postAdminUserTokens(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func deleteAdminUserTokens(w rest.ResponseWriter, r *rest.Request) {
-	token := r.PathParam("token")
-	c := appengine.NewContext(r.Request)
-	q := datastore.NewQuery("UserToken").Filter("Hash =", token)
-	var err error
-	var isDeleted bool
-	for t := q.Run(c); ; {
-		var ut UserToken
-		var key *datastore.Key
-		key, err = t.Next(&ut)
-		if err == datastore.Done {
-			break
+	if keys, err := lookupTokenKeys(r.Request); err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+	} else {
+		c := appengine.NewContext(r.Request)
+		if err := datastore.DeleteMulti(c, keys); err != nil {
+			rest.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-		if err != nil {
-			goto ice
-		}
-		if err = datastore.Delete(c, key); err != nil {
-			goto ice
-		}
-		isDeleted = true
-	}
-	if !isDeleted {
-		rest.Error(w, "token not found", http.StatusBadRequest)
 	}
 	return
-ice:
-	rest.Error(w, err.Error(), http.StatusInternalServerError)
 }
