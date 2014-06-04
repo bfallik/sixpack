@@ -56,6 +56,8 @@ cellarApp.controller('searchCtrl', ["$scope", "$resource", "security", function 
 	var beerSearch = $resource("/api/untappd/noauth/search/beer", {});
 	beerSearch.get({"q": query}).$promise.then(function(beers) {
 		$scope.beers = beers;
+	}, function(msg){
+		console.error(msg);
 	})};
 
 	security.getCurrentUser().then(function(u) {
