@@ -36,6 +36,16 @@ func (fn appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type appRestHandler func(rest.ResponseWriter, *rest.Request) *handlerError
+
+func restHandler(fn appRestHandler) rest.HandlerFunc {
+	return func(w rest.ResponseWriter, r *rest.Request) {
+		if err := fn(w, r); err != nil {
+			rest.Error(w, err.Error(), err.code)
+		}
+	}
+}
+
 func endpoint(p string) url.URL {
 	return url.URL{
 		Scheme: "http",
@@ -106,8 +116,8 @@ func init() {
 		},
 	}
 	restAdminHandler.SetRoutes(
-		&rest.Route{"GET", "/api/admin/config", getAdminConfig},
-		&rest.Route{"PUT", "/api/admin/config", putAdminConfig},
+		&rest.Route{"GET", "/api/admin/config", restHandler(getAdminConfig)},
+		&rest.Route{"PUT", "/api/admin/config", restHandler(putAdminConfig)},
 		&rest.Route{"GET", "/api/admin/user-tokens", getAdminAllUserTokens},
 		&rest.Route{"POST", "/api/admin/user-tokens", postAdminUserTokens},
 		&rest.Route{"DELETE", "/api/admin/user-tokens/:token", deleteAdminUserTokens},
@@ -696,30 +706,29 @@ func writeJson(w rest.ResponseWriter, v interface{}) {
 	}
 }
 
-func putAdminConfig(w rest.ResponseWriter, r *rest.Request) {
+func putAdminConfig(w rest.ResponseWriter, r *rest.Request) *handlerError {
 	var config Config
 	c := appengine.NewContext(r.Request)
 	err := r.DecodeJsonPayload(&config)
 	if err != nil {
 		err = fmt.Errorf("DecodeJsonPayload(): %s", err)
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return &handlerError{err, http.StatusInternalServerError}
 	}
 	if _, err := datastore.Put(c, configKey(c), &config); err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return &handlerError{err, http.StatusInternalServerError}
 	}
 	writeJson(w, config)
+	return nil
 }
 
-func getAdminConfig(w rest.ResponseWriter, r *rest.Request) {
+func getAdminConfig(w rest.ResponseWriter, r *rest.Request) *handlerError {
 	var config Config
 	c := appengine.NewContext(r.Request)
 	if err := datastore.Get(c, configKey(c), &config); err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return &handlerError{err, http.StatusInternalServerError}
 	}
 	writeJson(w, config)
+	return nil
 }
 
 func getUserMe(w rest.ResponseWriter, r *rest.Request) {
