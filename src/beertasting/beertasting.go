@@ -19,6 +19,23 @@ import (
 	"time"
 )
 
+type handlerError struct {
+	error
+	code int
+}
+
+func (e handlerError) Error() string {
+	return e.error.Error()
+}
+
+type appHandler func(http.ResponseWriter, *http.Request) *handlerError
+
+func (fn appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if err := fn(w, r); err != nil {
+		http.Error(w, err.Error(), err.code)
+	}
+}
+
 func endpoint(p string) url.URL {
 	return url.URL{
 		Scheme: "http",
@@ -70,12 +87,12 @@ func (AppengineAdminMiddleware) MiddlewareFunc(handler rest.HandlerFunc) rest.Ha
 
 func init() {
 	http.HandleFunc("/feed", feedHandler)
-	http.HandleFunc("/login", loginHandler)
-	http.HandleFunc("/logout", logoutHandler)
 	http.HandleFunc("/displayFeed", displayFeedHandler)
-	http.HandleFunc("/new-user", newUserHandler)
 	http.HandleFunc("/oauth/untappd", oauthUntappdHandler)
-	http.HandleFunc("/api/untappd/noauth/", untappdNoAuth)
+	http.Handle("/login", appHandler(loginHandler))
+	http.Handle("/logout", appHandler(logoutHandler))
+	http.Handle("/new-user", appHandler(newUserHandler))
+	http.Handle("/api/untappd/noauth/", appHandler(untappdNoAuth))
 
 	restNoAuthHandler := rest.ResourceHandler{}
 	restNoAuthHandler.SetRoutes(
@@ -444,30 +461,28 @@ func userLoggedIn(r *http.Request, w http.ResponseWriter) (*user.User, bool) {
 	return nil, false
 }
 
-func loginHandler(w http.ResponseWriter, r *http.Request) {
+func loginHandler(w http.ResponseWriter, r *http.Request) *handlerError {
 	c := appengine.NewContext(r)
 	newURL := r.URL
 	newURL.Path = "/"
 	u, err := user.LoginURL(c, newURL.String())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return &handlerError{err, http.StatusInternalServerError}
 	}
 	http.Redirect(w, r, u, http.StatusFound)
-	return
+	return nil
 }
 
-func logoutHandler(w http.ResponseWriter, r *http.Request) {
+func logoutHandler(w http.ResponseWriter, r *http.Request) *handlerError {
 	c := appengine.NewContext(r)
 	newURL := r.URL
 	newURL.Path = "/"
 	u, err := user.LogoutURL(c, newURL.String())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return &handlerError{err, http.StatusInternalServerError}
 	}
 	http.Redirect(w, r, u, http.StatusFound)
-	return
+	return nil
 }
 
 func oauthUntappdHandler(w http.ResponseWriter, r *http.Request) {
@@ -647,35 +662,32 @@ func lookupTokenKeys(r *http.Request) ([]*datastore.Key, error) {
 	return res, nil
 }
 
-func newUserHandler(w http.ResponseWriter, r *http.Request) {
+func newUserHandler(w http.ResponseWriter, r *http.Request) *handlerError {
 	c := appengine.NewContext(r)
 	tokenKeys, err := lookupTokenKeys(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		return &handlerError{err, http.StatusBadRequest}
 	}
 	u := user.Current(c)
 	if u == nil {
 		ur, err := user.LoginURL(c, r.URL.String())
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return &handlerError{err, http.StatusInternalServerError}
 		}
 		http.Redirect(w, r, ur, http.StatusFound)
-		return
+		return nil
 	}
 	if _, err = maybeCreateUser(r, u); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return &handlerError{err, http.StatusInternalServerError}
 	}
 	if err = datastore.DeleteMulti(c, tokenKeys); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return &handlerError{err, http.StatusInternalServerError}
 	}
 	newURL := r.URL
 	newURL.Path = "/"
 	newURL.RawQuery = ""
 	http.Redirect(w, r, newURL.String(), http.StatusFound)
+	return nil
 }
 
 func writeJson(w rest.ResponseWriter, v interface{}) {
@@ -863,10 +875,9 @@ func noAuthUntappdURL(r *http.Request, path string) (url.URL, error) {
 	return res, nil
 }
 
-func untappdNoAuth(w http.ResponseWriter, r *http.Request) {
+func untappdNoAuth(w http.ResponseWriter, r *http.Request) *handlerError {
 	if err := isAuthorized(r); err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
-		return
+		return &handlerError{err, http.StatusUnauthorized}
 	}
 	relPath := strings.TrimPrefix(r.URL.Path, "/api/untappd/noauth")
 	var reqURL url.URL
@@ -876,34 +887,31 @@ func untappdNoAuth(w http.ResponseWriter, r *http.Request) {
 		case "/search/beer":
 			var err error
 			if reqURL, err = noAuthUntappdURL(r, relPath); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
+				return &handlerError{err, http.StatusInternalServerError}
 			}
 		default:
 			http.NotFound(w, r)
-			return
+			return nil
 		}
 	} else {
-		http.Error(w, fmt.Sprintf("method %s not found", r.Method), http.StatusInternalServerError)
-		return
+		return &handlerError{fmt.Errorf("method %s not found", r.Method), http.StatusInternalServerError}
 	}
 	client := urlfetch.Client(c)
 	resp, err := client.Get(reqURL.String())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return &handlerError{err, http.StatusInternalServerError}
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return &handlerError{err, http.StatusInternalServerError}
 	}
 	for k, v := range resp.Header {
 		w.Header()[k] = v
 	}
 	w.WriteHeader(resp.StatusCode)
 	w.Write(body)
+	return nil
 }
 
 func getAdminAllUserTokens(w rest.ResponseWriter, r *rest.Request) {
