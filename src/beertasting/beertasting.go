@@ -35,17 +35,12 @@ func isAuthorized(r *http.Request) error {
 	if u == nil {
 		return fmt.Errorf("Not Authorized")
 	}
-	// allow an initial configuration
-	if r.Method == "POST" && r.URL.Path == "/api/admin/config" {
-		return nil
+	usr, err := lookupUser(r, u)
+	if err != nil {
+		return err
 	}
-	if config, err := getConfig(c); err != nil {
-		if u.Email == "test@example.com" {
-			return nil
-		}
-		if err = config.Whitelist.contains(u.Email); err != nil {
-			return err
-		}
+	if usr == nil {
+		return fmt.Errorf("Not Authorized")
 	}
 	return nil
 }
@@ -128,21 +123,9 @@ func init() {
 	http.Handle("/api/users/", &restHandler)
 }
 
-type stringSlice []string
-
-func (ss stringSlice) contains(target string) error {
-	for _, record := range ss {
-		if record == target {
-			return nil
-		}
-	}
-	return fmt.Errorf("%s not found", target)
-}
-
 type Config struct {
 	ClientId     string `json:"client_id"`
 	ClientSecret string `json:"client_secret"`
-	Whitelist    stringSlice
 }
 
 type IDKeyer interface {
@@ -596,7 +579,7 @@ func feedHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func maybeCreateUser(r *http.Request, u *user.User) (*User, error) {
+func lookupUser(r *http.Request, u *user.User) (*User, error) {
 	c := appengine.NewContext(r)
 	q := datastore.NewQuery("User").Filter("Email =", u.Email)
 	for t := q.Run(c); ; {
@@ -619,6 +602,25 @@ func maybeCreateUser(r *http.Request, u *user.User) (*User, error) {
 	}
 	c.Warningf("added user %s", u.Email)
 	return &usr, nil
+}
+
+func maybeCreateUser(r *http.Request, u *user.User) (*User, error) {
+	usr, err := lookupUser(r, u)
+	if err != nil {
+		return nil, err
+	}
+	c := appengine.NewContext(r)
+	if usr == nil {
+		usr := User{Name: u.String(), Email: u.Email}
+		key := datastore.NewIncompleteKey(c, usr.Kind(), nil)
+		if _, err := datastore.Put(c, key, &usr); err != nil {
+			return nil, err
+		}
+		c.Warningf("added user %s", u.Email)
+	} else {
+		c.Warningf("user %s already exists", u.Email)
+	}
+	return usr, nil
 }
 
 func lookupTokenKeys(r *http.Request) ([]*datastore.Key, error) {
