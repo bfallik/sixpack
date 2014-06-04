@@ -19,9 +19,13 @@ import (
 	"time"
 )
 
-var (
-	endpoint = url.URL{Scheme: "http", Host: "api.untappd.com", Path: "v4"}
-)
+func endpoint(p string) url.URL {
+	return url.URL{
+		Scheme: "http",
+		Host:   "api.untappd.com",
+		Path:   path.Join("v4", p),
+	}
+}
 
 type AppengineMiddleware struct{}
 
@@ -560,8 +564,8 @@ func displayFeedHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	endpoint.Path = path.Join(endpoint.Path, "checkin/recent")
-	s := struct{ Name, FeedRequest string }{user.String(), endpoint.String()}
+	end := endpoint("checkin/recent")
+	s := struct{ Name, FeedRequest string }{user.String(), end.String()}
 	if err := t.Execute(w, s); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -848,13 +852,12 @@ func noAuthUntappdURL(r *http.Request, path string) (url.URL, error) {
 	if err != nil {
 		return url.URL{}, err
 	}
-	res := endpoint
+	res := endpoint(path)
 	res.RawQuery = r.URL.RawQuery
 	q := res.Query()
 	q.Add("client_id", config.ClientId)
 	q.Add("client_secret", config.ClientSecret)
 	res.RawQuery = q.Encode()
-	res.Path += path
 	return res, nil
 }
 
