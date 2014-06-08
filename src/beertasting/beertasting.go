@@ -15,7 +15,6 @@ import (
 	"net/url"
 	"path"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -102,11 +101,11 @@ func init() {
 	http.Handle("/login", appHandler(loginHandler))
 	http.Handle("/logout", appHandler(logoutHandler))
 	http.Handle("/new-user", appHandler(newUserHandler))
-	http.Handle("/api/untappd/noauth/", appHandler(untappdNoAuth))
 
 	restNoAuthHandler := rest.ResourceHandler{}
 	restNoAuthHandler.SetRoutes(
 		&rest.Route{"GET", "/api/user/me", getUserMe},
+		&rest.Route{"GET", "/api/untappd/search/beer", restHandler(untappdSearchBeer)},
 	)
 
 	restAdminHandler := rest.ResourceHandler{
@@ -146,6 +145,7 @@ func init() {
 	http.Handle("/api/admin/user-tokens", &restAdminHandler)
 	http.Handle("/api/admin/user-tokens/", &restAdminHandler)
 	http.Handle("/api/user/me", &restNoAuthHandler)
+	http.Handle("/api/untappd/", &restNoAuthHandler)
 	http.Handle("/api/users", &restHandler)
 	http.Handle("/api/users/", &restHandler)
 }
@@ -885,42 +885,38 @@ func noAuthUntappdURL(r *http.Request, path string) (url.URL, error) {
 	return res, nil
 }
 
-func untappdNoAuth(w http.ResponseWriter, r *http.Request) *handlerError {
-	if err := isAuthorized(r); err != nil {
+func untappdSearchBeer(w rest.ResponseWriter, r *rest.Request) *handlerError {
+	if err := isAuthorized(r.Request); err != nil {
 		return &handlerError{err, http.StatusUnauthorized}
 	}
-	relPath := strings.TrimPrefix(r.URL.Path, "/api/untappd/noauth")
-	var reqURL url.URL
-	c := appengine.NewContext(r)
-	if r.Method == "GET" {
-		switch relPath {
-		case "/search/beer":
-			var err error
-			if reqURL, err = noAuthUntappdURL(r, relPath); err != nil {
-				return &handlerError{err, http.StatusInternalServerError}
-			}
-		default:
-			http.NotFound(w, r)
-			return nil
-		}
-	} else {
-		return &handlerError{fmt.Errorf("method %s not found", r.Method), http.StatusInternalServerError}
+	c := appengine.NewContext(r.Request)
+	url := "/search/beer"
+	reqURL, err := noAuthUntappdURL(r.Request, url)
+	if err != nil {
+		return &handlerError{err, http.StatusInternalServerError}
 	}
 	client := urlfetch.Client(c)
 	resp, err := client.Get(reqURL.String())
 	if err != nil {
+		c.Errorf("client.Get: %v", err)
 		return &handlerError{err, http.StatusInternalServerError}
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		c.Errorf("ReadAll: %v", err)
+		return &handlerError{err, http.StatusInternalServerError}
+	}
+	var v interface{}
+	if err = json.Unmarshal(body, &v); err != nil {
+		c.Errorf("json.Unmarshall: %v", err)
 		return &handlerError{err, http.StatusInternalServerError}
 	}
 	for k, v := range resp.Header {
 		w.Header()[k] = v
 	}
 	w.WriteHeader(resp.StatusCode)
-	w.Write(body)
+	w.WriteJson(v)
 	return nil
 }
 

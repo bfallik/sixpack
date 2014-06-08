@@ -53,7 +53,7 @@ cellarApp.controller('navBarCtrl', ["$scope", "security", function ($scope, secu
 
 cellarApp.controller('searchCtrl', ["$scope", "$resource", "security", function ($scope, $resource, security) {
 	$scope.doSearch = function(query) {
-	var beerSearch = $resource("/api/untappd/noauth/search/beer", {});
+	var beerSearch = $resource("/api/untappd/search/beer", {});
 	beerSearch.get({"q": query}).$promise.then(function(beers) {
 		$scope.beers = beers;
 	}, function(msg){
