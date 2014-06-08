@@ -1,5 +1,5 @@
 var cellarApp = angular.module('cellarApp',
-	["ngRoute", "ngResource", "ui.bootstrap"]);
+	["ngRoute", "ngResource", "ui.bootstrap", "ngGrid"]);
 
 cellarApp.factory('security',
 	['$http', function($http) {
@@ -72,9 +72,26 @@ cellarApp.controller('cellarCtrl', ["$scope", "$resource", "security", function 
 		$scope.currentUser = u.data
 	})
 
+	$scope.cellarData = []
+	$scope.gridOptions = {
+		data: 'cellarData',
+		columnDefs: [
+		{field: "qty", width: "5%" },
+		{field: "beer", width: "30%" },
+		{field: "brewery", width: "30%" },
+		{field: "notes", width: "**" }
+		]
+	};
+
 	var cellarGetter = $resource("/json/cellar.json", {});
 	cellarGetter.get({}).$promise.then(function(j) {
-		$scope.cellar = j.response;
+		angular.forEach(j.response.items, function(value, key) {
+			$scope.cellarData.push({
+				"qty": value.quantity,
+				"beer": value.beer.beer_name,
+				"brewery": value.brewery.brewery_name,
+				"notes": value.notes});
+		});
 	}, function(msg){
 		console.error(msg);
 	});
