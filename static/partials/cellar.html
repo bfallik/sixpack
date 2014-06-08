@@ -1,3 +1,5 @@
 <h2>Cellar</h2>
-
-{{ message }}
+<ul>
+    <li data-ng-repeat="item in cellar.items">qty: {{item.quantity}} {{item.beer.beer_name}} {{item.brewery.brewery_name}} {{item.notes}}</li>
+</ul>
+Welcome {{currentUser.name || "Anon"}}

@@ -67,6 +67,16 @@ cellarApp.controller('searchCtrl', ["$scope", "$resource", "security", function 
 	$scope.query = "PBR";
 }]);
 
-cellarApp.controller('cellarCtrl', function ($scope) {
-    $scope.message = 'UNDER CONSTRUCTION';
-});
+cellarApp.controller('cellarCtrl', ["$scope", "$resource", "security", function ($scope, $resource, security) {
+	security.getCurrentUser().then(function(u) {
+		$scope.currentUser = u.data
+	})
+
+	var cellarGetter = $resource("/json/cellar.json", {});
+	cellarGetter.get({}).$promise.then(function(j) {
+		$scope.cellar = j.response;
+	}, function(msg){
+		console.error(msg);
+	});
+
+}]);

@@ -44,6 +44,11 @@ handlers:
   static_files: static/\1
   upload: static/fonts/(.*\.woff)
 
+- url: /(json/.*\.json)
+  mime_type: application/json
+  static_files: static/\1
+  upload: static/json/(.*\.json)
+
 - url: /
   static_files: static/index.html
   upload: static/index.html
