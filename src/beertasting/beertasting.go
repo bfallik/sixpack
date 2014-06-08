@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -105,7 +106,8 @@ func init() {
 	restNoAuthHandler := rest.ResourceHandler{}
 	restNoAuthHandler.SetRoutes(
 		&rest.Route{"GET", "/api/user/me", getUserMe},
-		&rest.Route{"GET", "/api/untappd/search/beer", restHandler(untappdSearchBeer)},
+		&rest.Route{"GET", "/api/untappd/search/beer", restHandler(untappdAPI)},
+		&rest.Route{"GET", "/api/untappd/beer/info/:bid", restHandler(untappdAPI)},
 	)
 
 	restAdminHandler := rest.ResourceHandler{
@@ -870,13 +872,14 @@ func deleteBeer(w rest.ResponseWriter, r *rest.Request) {
 	restDelete(w, r, Beer{})
 }
 
-func noAuthUntappdURL(r *http.Request, path string) (url.URL, error) {
+func noAuthUntappdURL(r *http.Request) (url.URL, error) {
 	c := appengine.NewContext(r)
 	config, err := getConfig(c)
 	if err != nil {
 		return url.URL{}, err
 	}
-	res := endpoint(path)
+	relPath := strings.TrimPrefix(r.URL.Path, "/api/untappd")
+	res := endpoint(relPath)
 	res.RawQuery = r.URL.RawQuery
 	q := res.Query()
 	q.Add("client_id", config.ClientId)
@@ -885,13 +888,12 @@ func noAuthUntappdURL(r *http.Request, path string) (url.URL, error) {
 	return res, nil
 }
 
-func untappdSearchBeer(w rest.ResponseWriter, r *rest.Request) *handlerError {
+func untappdAPI(w rest.ResponseWriter, r *rest.Request) *handlerError {
 	if err := isAuthorized(r.Request); err != nil {
 		return &handlerError{err, http.StatusUnauthorized}
 	}
 	c := appengine.NewContext(r.Request)
-	url := "/search/beer"
-	reqURL, err := noAuthUntappdURL(r.Request, url)
+	reqURL, err := noAuthUntappdURL(r.Request)
 	if err != nil {
 		return &handlerError{err, http.StatusInternalServerError}
 	}
