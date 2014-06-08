@@ -439,6 +439,7 @@ func configKey(c appengine.Context) *datastore.Key {
 func getConfig(c appengine.Context) (Config, error) {
 	var cfg Config
 	if err := datastore.Get(c, configKey(c), &cfg); err != nil {
+		c.Errorf("missing config")
 		return Config{}, fmt.Errorf("getConfig(): %v", err)
 	}
 	return cfg, nil
