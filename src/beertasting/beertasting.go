@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -14,6 +15,7 @@ import (
 
 	"appengine"
 	"appengine/datastore"
+	"appengine/memcache"
 	"appengine/urlfetch"
 	"appengine/user"
 	"code.google.com/p/go-uuid/uuid"
@@ -877,40 +879,57 @@ func deleteBeer(w rest.ResponseWriter, r *rest.Request) {
 	restDelete(w, r, Beer{})
 }
 
+func addUntappdCredentials(u *url.URL, config Config) {
+	q := u.Query()
+	q.Add("client_id", config.ClientId)
+	q.Add("client_secret", config.ClientSecret)
+	u.RawQuery = q.Encode()
+}
+
 func noAuthUntappdURL(r *http.Request) (url.URL, error) {
-	c := appengine.NewContext(r)
-	config, err := getConfig(c)
-	if err != nil {
-		return url.URL{}, err
-	}
 	relPath := strings.TrimPrefix(r.URL.Path, "/api/untappd")
 	res := endpoint(relPath)
 	res.RawQuery = r.URL.RawQuery
-	q := res.Query()
-	q.Add("client_id", config.ClientId)
-	q.Add("client_secret", config.ClientSecret)
-	res.RawQuery = q.Encode()
 	return res, nil
 }
 
 func restClientGet(c appengine.Context, u url.URL, v interface{}) (int, *handlerError) {
 	client := urlfetch.Client(c)
+	config, err := getConfig(c)
+	if err != nil {
+		return 0, new500HandlerError(err)
+	}
+	c.Infof("urlfetch GET %s", u.String())
+	addUntappdCredentials(&u, config)
 	resp, err := client.Get(u.String())
 	if err != nil {
 		c.Errorf("client.Get: %v", err)
 		return 0, new500HandlerError(err)
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		c.Errorf("ReadAll: %v", err)
-		return 0, new500HandlerError(err)
-	}
-	if err = json.Unmarshal(body, v); err != nil {
-		c.Errorf("json.Unmarshall: %v", err)
-		return 0, new500HandlerError(err)
+	if err = json.NewDecoder(resp.Body).Decode(v); err != nil {
+		if err != io.EOF {
+			c.Errorf("json.Decode(): %v", err)
+			return 0, new500HandlerError(err)
+		}
 	}
 	return resp.StatusCode, nil
+}
+
+func restClientGetM(c appengine.Context, u url.URL, v interface{}) (int, *handlerError) {
+	code, herr := restClientGet(c, u, v)
+	if herr != nil {
+		return 0, herr
+	}
+	err := memcache.JSON.Set(c, &memcache.Item{
+		Key:    u.RequestURI(),
+		Object: v,
+	})
+	if err != nil {
+		c.Errorf("unable to store %s: %v", u.Path, err)
+		return 0, new500HandlerError(err)
+	}
+	return code, nil
 }
 
 func untappdAPI(w rest.ResponseWriter, r *rest.Request) *handlerError {
@@ -920,10 +939,19 @@ func untappdAPI(w rest.ResponseWriter, r *rest.Request) *handlerError {
 	}
 	c := appengine.NewContext(r.Request)
 	var v interface{}
-	code, herr := restClientGet(c, reqURL, &v)
-	if herr != nil {
-		c.Errorf(herr.Error())
-		return herr
+	key := reqURL.RequestURI()
+	code := http.StatusOK
+	if _, err = memcache.JSON.Get(c, key, &v); err == memcache.ErrCacheMiss {
+		c.Infof("%s not found in cache", key)
+		var herr *handlerError
+		if code, herr = restClientGetM(c, reqURL, &v); herr != nil {
+			return herr
+		}
+	} else if err != nil {
+		c.Errorf(err.Error())
+		return new500HandlerError(err)
+	} else {
+		c.Infof("%s found in cache", key)
 	}
 	w.WriteHeader(code)
 	w.WriteJson(v)
