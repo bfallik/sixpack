@@ -912,9 +912,6 @@ func untappdAPI(w rest.ResponseWriter, r *rest.Request) *handlerError {
 		c.Errorf("json.Unmarshall: %v", err)
 		return &handlerError{err, http.StatusInternalServerError}
 	}
-	for k, v := range resp.Header {
-		w.Header()[k] = v
-	}
 	w.WriteHeader(resp.StatusCode)
 	w.WriteJson(v)
 	return nil
