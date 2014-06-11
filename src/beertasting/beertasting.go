@@ -29,6 +29,10 @@ func (e handlerError) Error() string {
 	return e.error.Error()
 }
 
+func new500HandlerError(err error) *handlerError {
+	return &handlerError{err, http.StatusInternalServerError}
+}
+
 type appHandler func(http.ResponseWriter, *http.Request) *handlerError
 
 func (fn appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -481,7 +485,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) *handlerError {
 	newURL.Path = "/"
 	u, err := user.LoginURL(c, newURL.String())
 	if err != nil {
-		return &handlerError{err, http.StatusInternalServerError}
+		return new500HandlerError(err)
 	}
 	http.Redirect(w, r, u, http.StatusFound)
 	return nil
@@ -493,7 +497,7 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) *handlerError {
 	newURL.Path = "/"
 	u, err := user.LogoutURL(c, newURL.String())
 	if err != nil {
-		return &handlerError{err, http.StatusInternalServerError}
+		return new500HandlerError(err)
 	}
 	http.Redirect(w, r, u, http.StatusFound)
 	return nil
@@ -686,16 +690,16 @@ func newUserHandler(w http.ResponseWriter, r *http.Request) *handlerError {
 	if u == nil {
 		ur, err := user.LoginURL(c, r.URL.String())
 		if err != nil {
-			return &handlerError{err, http.StatusInternalServerError}
+			return new500HandlerError(err)
 		}
 		http.Redirect(w, r, ur, http.StatusFound)
 		return nil
 	}
 	if _, err = maybeCreateUser(r, u); err != nil {
-		return &handlerError{err, http.StatusInternalServerError}
+		return new500HandlerError(err)
 	}
 	if err = datastore.DeleteMulti(c, tokenKeys); err != nil {
-		return &handlerError{err, http.StatusInternalServerError}
+		return new500HandlerError(err)
 	}
 	newURL := r.URL
 	newURL.Path = "/"
@@ -716,10 +720,10 @@ func putAdminConfig(w rest.ResponseWriter, r *rest.Request) *handlerError {
 	err := r.DecodeJsonPayload(&config)
 	if err != nil {
 		err = fmt.Errorf("DecodeJsonPayload(): %s", err)
-		return &handlerError{err, http.StatusInternalServerError}
+		return new500HandlerError(err)
 	}
 	if _, err := datastore.Put(c, configKey(c), &config); err != nil {
-		return &handlerError{err, http.StatusInternalServerError}
+		return new500HandlerError(err)
 	}
 	writeJson(w, config)
 	return nil
@@ -729,7 +733,7 @@ func getAdminConfig(w rest.ResponseWriter, r *rest.Request) *handlerError {
 	var config Config
 	c := appengine.NewContext(r.Request)
 	if err := datastore.Get(c, configKey(c), &config); err != nil {
-		return &handlerError{err, http.StatusInternalServerError}
+		return new500HandlerError(err)
 	}
 	writeJson(w, config)
 	return nil
@@ -889,30 +893,39 @@ func noAuthUntappdURL(r *http.Request) (url.URL, error) {
 	return res, nil
 }
 
-func untappdAPI(w rest.ResponseWriter, r *rest.Request) *handlerError {
-	c := appengine.NewContext(r.Request)
-	reqURL, err := noAuthUntappdURL(r.Request)
-	if err != nil {
-		return &handlerError{err, http.StatusInternalServerError}
-	}
+func restClientGet(c appengine.Context, u url.URL, v interface{}) (int, *handlerError) {
 	client := urlfetch.Client(c)
-	resp, err := client.Get(reqURL.String())
+	resp, err := client.Get(u.String())
 	if err != nil {
 		c.Errorf("client.Get: %v", err)
-		return &handlerError{err, http.StatusInternalServerError}
+		return 0, new500HandlerError(err)
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		c.Errorf("ReadAll: %v", err)
-		return &handlerError{err, http.StatusInternalServerError}
+		return 0, new500HandlerError(err)
 	}
-	var v interface{}
-	if err = json.Unmarshal(body, &v); err != nil {
+	if err = json.Unmarshal(body, v); err != nil {
 		c.Errorf("json.Unmarshall: %v", err)
-		return &handlerError{err, http.StatusInternalServerError}
+		return 0, new500HandlerError(err)
 	}
-	w.WriteHeader(resp.StatusCode)
+	return resp.StatusCode, nil
+}
+
+func untappdAPI(w rest.ResponseWriter, r *rest.Request) *handlerError {
+	reqURL, err := noAuthUntappdURL(r.Request)
+	if err != nil {
+		return new500HandlerError(err)
+	}
+	c := appengine.NewContext(r.Request)
+	var v interface{}
+	code, herr := restClientGet(c, reqURL, &v)
+	if herr != nil {
+		c.Errorf(herr.Error())
+		return herr
+	}
+	w.WriteHeader(code)
 	w.WriteJson(v)
 	return nil
 }
