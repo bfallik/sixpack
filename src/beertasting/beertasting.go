@@ -123,12 +123,12 @@ func init() {
 		&rest.Route{"DELETE", "/api/admin/user-tokens/:token", deleteAdminUserTokens},
 	)
 
-	restHandler := rest.ResourceHandler{
+	restAuthHandler := rest.ResourceHandler{
 		PreRoutingMiddlewares: []rest.Middleware{
 			&AppengineMiddleware{},
 		},
 	}
-	restHandler.SetRoutes(
+	restAuthHandler.SetRoutes(
 		&rest.Route{"GET", "/api/users", getAllUsers},
 		&rest.Route{"POST", "/api/users", postUser},
 		&rest.Route{"GET", "/api/users/:id", getUser},
@@ -148,9 +148,9 @@ func init() {
 	http.Handle("/api/admin/user-tokens", &restAdminHandler)
 	http.Handle("/api/admin/user-tokens/", &restAdminHandler)
 	http.Handle("/api/user/me", &restNoAuthHandler)
-	http.Handle("/api/untappd/", &restHandler)
-	http.Handle("/api/users", &restHandler)
-	http.Handle("/api/users/", &restHandler)
+	http.Handle("/api/untappd/", &restAuthHandler)
+	http.Handle("/api/users", &restAuthHandler)
+	http.Handle("/api/users/", &restAuthHandler)
 }
 
 type Config struct {
