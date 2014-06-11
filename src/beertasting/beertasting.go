@@ -107,8 +107,6 @@ func init() {
 	restNoAuthHandler := rest.ResourceHandler{}
 	restNoAuthHandler.SetRoutes(
 		&rest.Route{"GET", "/api/user/me", getUserMe},
-		&rest.Route{"GET", "/api/untappd/search/beer", restHandler(untappdAPI)},
-		&rest.Route{"GET", "/api/untappd/beer/info/:bid", restHandler(untappdAPI)},
 	)
 
 	restAdminHandler := rest.ResourceHandler{
@@ -143,12 +141,14 @@ func init() {
 		&rest.Route{"POST", "/api/users/:id/cellars/:cellar_id/beers", postBeer},
 		&rest.Route{"GET", "/api/users/:id/cellars/:cellar_id/beers/:beer_id", getBeer},
 		&rest.Route{"DELETE", "/api/users/:id/cellars/:cellar_id/beers/:beer_id", deleteBeer},
+		&rest.Route{"GET", "/api/untappd/search/beer", restHandler(untappdAPI)},
+		&rest.Route{"GET", "/api/untappd/beer/info/:bid", restHandler(untappdAPI)},
 	)
 	http.Handle("/api/admin/config", &restAdminHandler)
 	http.Handle("/api/admin/user-tokens", &restAdminHandler)
 	http.Handle("/api/admin/user-tokens/", &restAdminHandler)
 	http.Handle("/api/user/me", &restNoAuthHandler)
-	http.Handle("/api/untappd/", &restNoAuthHandler)
+	http.Handle("/api/untappd/", &restHandler)
 	http.Handle("/api/users", &restHandler)
 	http.Handle("/api/users/", &restHandler)
 }
@@ -890,9 +890,6 @@ func noAuthUntappdURL(r *http.Request) (url.URL, error) {
 }
 
 func untappdAPI(w rest.ResponseWriter, r *rest.Request) *handlerError {
-	if err := isAuthorized(r.Request); err != nil {
-		return &handlerError{err, http.StatusUnauthorized}
-	}
 	c := appengine.NewContext(r.Request)
 	reqURL, err := noAuthUntappdURL(r.Request)
 	if err != nil {
