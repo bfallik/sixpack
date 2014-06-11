@@ -1,14 +1,8 @@
 package beertasting
 
 import (
-	"appengine"
-	"appengine/datastore"
-	"appengine/urlfetch"
-	"appengine/user"
-	"code.google.com/p/go-uuid/uuid"
 	"encoding/json"
 	"fmt"
-	"github.com/ant0ine/go-json-rest/rest"
 	"html/template"
 	"io/ioutil"
 	"net/http"
@@ -17,6 +11,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"appengine"
+	"appengine/datastore"
+	"appengine/urlfetch"
+	"appengine/user"
+	"code.google.com/p/go-uuid/uuid"
+	"github.com/ant0ine/go-json-rest/rest"
 )
 
 type handlerError struct {
