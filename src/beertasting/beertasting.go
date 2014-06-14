@@ -335,16 +335,18 @@ func (cellars *Cellars) DatastoreGet(r *rest.Request) (int, error) {
 }
 
 type Beer struct {
-	ID   int64
-	Name string
+	ID        int64       `json:"id"`
+	BID       int         `json:"-"`
+	BreweryID int         `json:"-"`
+	Quantity  int         `json:"quantity"`
+	Notes     string      `json:"notes"`
+	Beer      interface{} `json:"beer" datastore:"-"`
+	Brewery   interface{} `json:"brewery" datastore:"-"`
 }
 
 func (beer *Beer) DecodeJsonPayload(r *rest.Request) error {
 	if err := r.DecodeJsonPayload(beer); err != nil {
 		return err
-	}
-	if beer.Name == "" {
-		return fmt.Errorf("name required")
 	}
 	return nil
 }
@@ -914,10 +916,46 @@ func deleteAdminUserTokens(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func getCellarByName(w rest.ResponseWriter, r *rest.Request) *handlerError {
+	c := appengine.NewContext(r.Request)
 	b, err := ioutil.ReadFile("static/json/cellar.json")
-	if err != nil {
-		rest.Error(w, err.Error(), http.StatusInternalServerError)
+	type payload struct {
+		Response struct {
+			Message string `json:"message"`
+			Items   Beers  `json:"items"`
+		} `json:"response"`
 	}
-	w.(http.ResponseWriter).Write(b)
+	var p payload
+	if err := json.Unmarshal(b, &p); err != nil {
+		c.Errorf("json.Unmarshall(): %v", err)
+		return new500HandlerError(err)
+	}
+	u_ := user.Current(c)
+	_, userKey, err := lookupUser(r.Request, u_)
+	if err != nil {
+		return new500HandlerError(err)
+	}
+	cellarName := r.PathParam("cellar_name")
+	var cellars Cellars
+	cellarKeys, err := datastore.NewQuery("Cellar").Ancestor(userKey).Filter("Name =", cellarName).GetAll(c, &cellars)
+	if err != nil {
+		return new500HandlerError(err)
+	}
+	switch len(cellars) {
+	case 0:
+		cellar := Cellar{Name: cellarName}
+		key := datastore.NewIncompleteKey(c, cellar.Kind(), userKey)
+		newKey, err := datastore.Put(c, key, &cellar)
+		if err != nil {
+			return new500HandlerError(err)
+		}
+		cellarKeys = append(cellarKeys, newKey)
+	case 2:
+		err := fmt.Errorf("found %d match(es) for %s", len(cellars), cellarName)
+		return new500HandlerError(err)
+	}
+	if _, err := datastore.NewQuery("Beer").Ancestor(cellarKeys[0]).GetAll(c, &p.Response.Items); err != nil {
+		return new500HandlerError(err)
+	}
+	w.WriteJson(p)
 	return nil
 }
