@@ -69,7 +69,7 @@ func isAuthorized(r *http.Request) error {
 	if u == nil {
 		return fmt.Errorf("Not Authorized")
 	}
-	_, err := lookupUser(r, u)
+	_, _, err := lookupUser(r, u)
 	return err
 }
 
@@ -571,20 +571,21 @@ func feedHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func lookupUser(r *http.Request, u *user.User) (*User, error) {
+func lookupUser(r *http.Request, u *user.User) (*User, *datastore.Key, error) {
 	c := appengine.NewContext(r)
 	var us Users
-	if _, err := datastore.NewQuery("User").Filter("Email =", u.Email).GetAll(c, &us); err != nil {
-		return nil, err
+	keys, err := datastore.NewQuery("User").Filter("Email =", u.Email).GetAll(c, &us)
+	if err != nil {
+		return nil, nil, err
 	}
 	if len(us) != 1 {
-		return nil, fmt.Errorf("found %d match(es) for %s", len(us), u.Email)
+		return nil, nil, fmt.Errorf("found %d match(es) for %s", len(us), u.Email)
 	}
-	return &us[0], nil
+	return &us[0], keys[0], nil
 }
 
 func maybeCreateUser(r *http.Request, u *user.User) (*User, error) {
-	usr, err := lookupUser(r, u)
+	usr, _, err := lookupUser(r, u)
 	if err != nil {
 		return nil, err
 	}
