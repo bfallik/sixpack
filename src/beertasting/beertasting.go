@@ -143,6 +143,7 @@ func init() {
 		&rest.Route{"DELETE", "/api/users/:id/cellars/:cellar_id/beers/:beer_id", deleteBeer},
 		&rest.Route{"GET", "/api/untappd/search/beer", restHandler(untappdAPI)},
 		&rest.Route{"GET", "/api/untappd/beer/info/:bid", restHandler(untappdAPI)},
+		&rest.Route{"GET", "/api/user/me/cellar/:cellar_name", restHandler(getCellarByName)},
 	)
 	http.Handle("/api/admin/config", &restAdminHandler)
 	http.Handle("/api/admin/user-tokens", &restAdminHandler)
@@ -151,6 +152,7 @@ func init() {
 	http.Handle("/api/untappd/", &restAuthHandler)
 	http.Handle("/api/users", &restAuthHandler)
 	http.Handle("/api/users/", &restAuthHandler)
+	http.Handle("/api/user/me/cellar/", &restAuthHandler)
 }
 
 type Config struct {
@@ -972,4 +974,13 @@ func deleteAdminUserTokens(w rest.ResponseWriter, r *rest.Request) {
 		}
 	}
 	return
+}
+
+func getCellarByName(w rest.ResponseWriter, r *rest.Request) *handlerError {
+	b, err := ioutil.ReadFile("static/json/cellar.json")
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	w.(http.ResponseWriter).Write(b)
+	return nil
 }

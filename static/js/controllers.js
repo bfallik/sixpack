@@ -83,7 +83,7 @@ cellarApp.controller('cellarCtrl', ["$scope", "$resource", "security", function 
 		]
 	};
 
-	var cellarGetter = $resource("/json/cellar.json", {});
+	var cellarGetter = $resource("/api/user/me/cellar/default", {});
 	cellarGetter.get({}).$promise.then(function(j) {
 		angular.forEach(j.response.items, function(value, key) {
 			$scope.cellarData.push({
