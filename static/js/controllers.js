@@ -24,10 +24,14 @@ cellarApp.config(
       when('/search', {
         templateUrl: 'partials/search.html',
         controller: 'searchCtrl'
-    }).
+      }).
       when('/cellar', {
         templateUrl: 'partials/cellar.html',
         controller: 'cellarCtrl'
+      }).
+      when('/admin', {
+        templateUrl: 'partials/admin.html',
+        controller: 'adminCtrl'
       }).
       otherwise({
         redirectTo: '/search'
@@ -44,9 +48,11 @@ cellarApp.controller('navBarCtrl', ["$scope", "security", function ($scope, secu
 		if (u.status == 200) {
 			$scope.authOperation = "/logout";
 			$scope.authText = "Logout";
+			$scope.isAdmin = u.data.is_admin
 		} else if (u.status == 404) {
 			$scope.authOperation = "/login";
 			$scope.authText = "Login";
+			$scope.isAdmin = false
 		}
 	})
 }]);
@@ -95,5 +101,7 @@ cellarApp.controller('cellarCtrl', ["$scope", "$resource", "security", function 
 	}, function(msg){
 		console.error(msg);
 	});
+}]);
 
+cellarApp.controller('adminCtrl', ["$scope", "$resource", "security", function ($scope, $resource, security) {
 }]);
