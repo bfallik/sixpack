@@ -573,20 +573,14 @@ func feedHandler(w http.ResponseWriter, r *http.Request) {
 
 func lookupUser(r *http.Request, u *user.User) (*User, error) {
 	c := appengine.NewContext(r)
-	q := datastore.NewQuery("User").Filter("Email =", u.Email)
-	for t := q.Run(c); ; {
-		var usr User
-		_, err := t.Next(&usr)
-		if err == datastore.Done {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-		// TODO: handle >1 result
-		return &usr, nil
+	var us Users
+	if _, err := datastore.NewQuery("User").Filter("Email =", u.Email).GetAll(c, &us); err != nil {
+		return nil, err
 	}
-	return nil, fmt.Errorf("user email %s not found", u.Email)
+	if len(us) != 1 {
+		return nil, fmt.Errorf("found %d match(es) for %s", len(us), u.Email)
+	}
+	return &us[0], nil
 }
 
 func maybeCreateUser(r *http.Request, u *user.User) (*User, error) {
