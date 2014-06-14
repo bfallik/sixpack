@@ -624,16 +624,9 @@ func lookupUser(r *http.Request, u *user.User) (*User, error) {
 			return nil, err
 		}
 		// TODO: handle >1 result
-		c.Warningf("user %s already exists", u.Email)
 		return &usr, nil
 	}
-	usr := User{Name: u.String(), Email: u.Email}
-	key := datastore.NewIncompleteKey(c, usr.Kind(), nil)
-	if _, err := datastore.Put(c, key, &usr); err != nil {
-		return nil, err
-	}
-	c.Warningf("added user %s", u.Email)
-	return &usr, nil
+	return nil, fmt.Errorf("user email %s not found", u.Email)
 }
 
 func maybeCreateUser(r *http.Request, u *user.User) (*User, error) {
