@@ -215,14 +215,14 @@ type User struct {
 	Email string
 }
 
-func (user *User) DecodeJsonPayload(r *rest.Request) error {
-	if err := r.DecodeJsonPayload(user); err != nil {
+func (u *User) DecodeJsonPayload(r *rest.Request) error {
+	if err := r.DecodeJsonPayload(u); err != nil {
 		return err
 	}
-	if user.Name == "" {
+	if u.Name == "" {
 		return fmt.Errorf("name required")
 	}
-	if user.Email == "" {
+	if u.Email == "" {
 		return fmt.Errorf("email required")
 	}
 	return nil
@@ -241,20 +241,20 @@ func (u User) WriteJson(w rest.ResponseWriter, key *datastore.Key) {
 	writeJson(w, u)
 }
 
-func (user User) DatastoreKey(r *rest.Request) (*datastore.Key, error) {
-	return datastoreKey(r, user, nil)
+func (u User) DatastoreKey(r *rest.Request) (*datastore.Key, error) {
+	return datastoreKey(r, u, nil)
 }
 
-func (user *User) DatastoreGet(r *rest.Request) (int, error) {
-	key, err := user.DatastoreKey(r)
+func (u *User) DatastoreGet(r *rest.Request) (int, error) {
+	key, err := u.DatastoreKey(r)
 	if err != nil {
 		return http.StatusBadRequest, err
 	}
 	c := appengine.NewContext(r.Request)
-	if err := datastore.Get(c, key, user); err != nil {
+	if err := datastore.Get(c, key, u); err != nil {
 		return http.StatusInternalServerError, err
 	}
-	user.ID = key.IntID()
+	u.ID = key.IntID()
 	return http.StatusOK, nil
 }
 
@@ -321,9 +321,9 @@ func (cellar *Cellar) DatastoreGet(r *rest.Request) (int, error) {
 type Cellars []Cellar
 
 func (cellars *Cellars) DatastoreGet(r *rest.Request) (int, error) {
-	var user User
+	var u User
 	c := appengine.NewContext(r.Request)
-	userKey, err := user.DatastoreKey(r)
+	userKey, err := u.DatastoreKey(r)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -711,8 +711,8 @@ func restGet(w rest.ResponseWriter, r *rest.Request, val RestGetter) {
 }
 
 func getUser(w rest.ResponseWriter, r *rest.Request) {
-	var user User
-	restGet(w, r, &user)
+	var user_ User
+	restGet(w, r, &user_)
 }
 
 func getAllUsers(w rest.ResponseWriter, r *rest.Request) {
@@ -743,8 +743,8 @@ func restPost(w rest.ResponseWriter, r *rest.Request, val RestPutter, parentKey 
 }
 
 func postUser(w rest.ResponseWriter, r *rest.Request) {
-	var user User
-	restPost(w, r, &user, nil)
+	var user_ User
+	restPost(w, r, &user_, nil)
 }
 
 type RestKeyer interface {
