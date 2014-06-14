@@ -130,15 +130,15 @@ func init() {
 	}
 	restAuthHandler.SetRoutes(
 		&rest.Route{"GET", "/api/users", makeRestGetter(&Users{})},
-		&rest.Route{"POST", "/api/users", postUser},
+		&rest.Route{"POST", "/api/users", makeRestPoster(&User{})},
 		&rest.Route{"GET", "/api/users/:id", makeRestGetter(&User{})},
 		&rest.Route{"DELETE", "/api/users/:id", makeRestDeleter(&User{})},
 		&rest.Route{"GET", "/api/users/:id/cellars", makeRestGetter(&Cellars{})},
-		&rest.Route{"POST", "/api/users/:id/cellars", postCellar},
+		&rest.Route{"POST", "/api/users/:id/cellars", makeRestPoster(&Cellar{})},
 		&rest.Route{"GET", "/api/users/:id/cellars/:cellar_id", makeRestGetter(&Cellar{})},
 		&rest.Route{"DELETE", "/api/users/:id/cellars/:cellar_id", makeRestDeleter(&Cellar{})},
 		&rest.Route{"GET", "/api/users/:id/cellars/:cellar_id/beers", makeRestGetter(&Beers{})},
-		&rest.Route{"POST", "/api/users/:id/cellars/:cellar_id/beers", postBeer},
+		&rest.Route{"POST", "/api/users/:id/cellars/:cellar_id/beers", makeRestPoster(&Beer{})},
 		&rest.Route{"GET", "/api/users/:id/cellars/:cellar_id/beers/:beer_id", makeRestGetter(&Beer{})},
 		&rest.Route{"DELETE", "/api/users/:id/cellars/:cellar_id/beers/:beer_id", makeRestDeleter(&Beer{})},
 		&rest.Route{"GET", "/api/untappd/search/beer", restHandler(untappdAPI)},
@@ -209,6 +209,10 @@ func (ut UserToken) WriteJson(w rest.ResponseWriter, key *datastore.Key) {
 	writeJson(w, ut)
 }
 
+func (UserToken) ParentKey(r *rest.Request) (*datastore.Key, error) {
+	return nil, nil
+}
+
 type User struct {
 	ID    int64 `datastore:"-"`
 	Name  string
@@ -256,6 +260,10 @@ func (u *User) DatastoreGet(r *rest.Request) (int, error) {
 	}
 	u.ID = key.IntID()
 	return http.StatusOK, nil
+}
+
+func (User) ParentKey(r *rest.Request) (*datastore.Key, error) {
+	return nil, nil
 }
 
 type Users []User
@@ -316,6 +324,14 @@ func (cellar *Cellar) DatastoreGet(r *rest.Request) (int, error) {
 	}
 	cellar.ID = key.IntID()
 	return http.StatusOK, nil
+}
+
+func (Cellar) ParentKey(r *rest.Request) (*datastore.Key, error) {
+	key, err := User{}.DatastoreKey(r)
+	if err != nil {
+		return nil, err
+	}
+	return key, nil
 }
 
 type Cellars []Cellar
@@ -383,6 +399,14 @@ func (beer *Beer) DatastoreGet(r *rest.Request) (int, error) {
 	}
 	beer.ID = key.IntID()
 	return http.StatusOK, nil
+}
+
+func (Beer) ParentKey(r *rest.Request) (*datastore.Key, error) {
+	key, err := Cellar{}.DatastoreKey(r)
+	if err != nil {
+		return nil, err
+	}
+	return key, nil
 }
 
 type Beers []Beer
@@ -710,11 +734,17 @@ func restGet(w rest.ResponseWriter, r *rest.Request, val RestGetter) {
 type RestPutter interface {
 	DecodeJsonPayload(r *rest.Request) error
 	WriteJson(w rest.ResponseWriter, key *datastore.Key)
+	ParentKey(r *rest.Request) (*datastore.Key, error)
 	IDKeyer
 }
 
-func restPost(w rest.ResponseWriter, r *rest.Request, val RestPutter, parentKey *datastore.Key) {
+func restPost(w rest.ResponseWriter, r *rest.Request, val RestPutter) {
 	err := val.DecodeJsonPayload(r)
+	if err != nil {
+		rest.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	parentKey, err := val.ParentKey(r)
 	if err != nil {
 		rest.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -729,9 +759,8 @@ func restPost(w rest.ResponseWriter, r *rest.Request, val RestPutter, parentKey 
 	val.WriteJson(w, newKey)
 }
 
-func postUser(w rest.ResponseWriter, r *rest.Request) {
-	var user_ User
-	restPost(w, r, &user_, nil)
+func makeRestPoster(v RestPutter) rest.HandlerFunc {
+	return func(w rest.ResponseWriter, r *rest.Request) { restPost(w, r, v) }
 }
 
 type RestKeyer interface {
@@ -756,28 +785,8 @@ func makeRestDeleter(v RestKeyer) rest.HandlerFunc {
 	return func(w rest.ResponseWriter, r *rest.Request) { restDelete(w, r, v) }
 }
 
-func postCellar(w rest.ResponseWriter, r *rest.Request) {
-	parentKey, err := User{}.DatastoreKey(r)
-	if err != nil {
-		rest.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	var cellar Cellar
-	restPost(w, r, &cellar, parentKey)
-}
-
 func makeRestGetter(v RestGetter) rest.HandlerFunc {
 	return func(w rest.ResponseWriter, r *rest.Request) { restGet(w, r, v) }
-}
-
-func postBeer(w rest.ResponseWriter, r *rest.Request) {
-	parentKey, err := Cellar{}.DatastoreKey(r)
-	if err != nil {
-		rest.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	var beer Beer
-	restPost(w, r, &beer, parentKey)
 }
 
 func addUntappdCredentials(u *url.URL, config Config) {
@@ -866,7 +875,7 @@ func getAdminAllUserTokens(w rest.ResponseWriter, r *rest.Request) {
 
 func postAdminUserTokens(w rest.ResponseWriter, r *rest.Request) {
 	var token UserToken
-	restPost(w, r, &token, nil)
+	restPost(w, r, &token)
 }
 
 func deleteAdminUserTokens(w rest.ResponseWriter, r *rest.Request) {
