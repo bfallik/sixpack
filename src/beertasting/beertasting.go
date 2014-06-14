@@ -129,18 +129,18 @@ func init() {
 		},
 	}
 	restAuthHandler.SetRoutes(
-		&rest.Route{"GET", "/api/users", getAllUsers},
+		&rest.Route{"GET", "/api/users", makeRestGetter(&Users{})},
 		&rest.Route{"POST", "/api/users", postUser},
-		&rest.Route{"GET", "/api/users/:id", getUser},
-		&rest.Route{"DELETE", "/api/users/:id", deleteUser},
-		&rest.Route{"GET", "/api/users/:id/cellars", getAllCellars},
+		&rest.Route{"GET", "/api/users/:id", makeRestGetter(&User{})},
+		&rest.Route{"DELETE", "/api/users/:id", makeRestDeleter(&User{})},
+		&rest.Route{"GET", "/api/users/:id/cellars", makeRestGetter(&Cellars{})},
 		&rest.Route{"POST", "/api/users/:id/cellars", postCellar},
-		&rest.Route{"GET", "/api/users/:id/cellars/:cellar_id", getCellar},
-		&rest.Route{"DELETE", "/api/users/:id/cellars/:cellar_id", deleteCellar},
-		&rest.Route{"GET", "/api/users/:id/cellars/:cellar_id/beers", getAllBeers},
+		&rest.Route{"GET", "/api/users/:id/cellars/:cellar_id", makeRestGetter(&Cellar{})},
+		&rest.Route{"DELETE", "/api/users/:id/cellars/:cellar_id", makeRestDeleter(&Cellar{})},
+		&rest.Route{"GET", "/api/users/:id/cellars/:cellar_id/beers", makeRestGetter(&Beers{})},
 		&rest.Route{"POST", "/api/users/:id/cellars/:cellar_id/beers", postBeer},
-		&rest.Route{"GET", "/api/users/:id/cellars/:cellar_id/beers/:beer_id", getBeer},
-		&rest.Route{"DELETE", "/api/users/:id/cellars/:cellar_id/beers/:beer_id", deleteBeer},
+		&rest.Route{"GET", "/api/users/:id/cellars/:cellar_id/beers/:beer_id", makeRestGetter(&Beer{})},
+		&rest.Route{"DELETE", "/api/users/:id/cellars/:cellar_id/beers/:beer_id", makeRestDeleter(&Beer{})},
 		&rest.Route{"GET", "/api/untappd/search/beer", restHandler(untappdAPI)},
 		&rest.Route{"GET", "/api/untappd/beer/info/:bid", restHandler(untappdAPI)},
 		&rest.Route{"GET", "/api/user/me/cellar/:cellar_name", restHandler(getCellarByName)},
@@ -707,16 +707,6 @@ func restGet(w rest.ResponseWriter, r *rest.Request, val RestGetter) {
 	writeJson(w, val)
 }
 
-func getUser(w rest.ResponseWriter, r *rest.Request) {
-	var user_ User
-	restGet(w, r, &user_)
-}
-
-func getAllUsers(w rest.ResponseWriter, r *rest.Request) {
-	var users Users
-	restGet(w, r, &users)
-}
-
 type RestPutter interface {
 	DecodeJsonPayload(r *rest.Request) error
 	WriteJson(w rest.ResponseWriter, key *datastore.Key)
@@ -762,18 +752,8 @@ func restDelete(w rest.ResponseWriter, r *rest.Request, keyer RestKeyer) {
 	}
 }
 
-func deleteUser(w rest.ResponseWriter, r *rest.Request) {
-	restDelete(w, r, User{})
-}
-
-func getCellar(w rest.ResponseWriter, r *rest.Request) {
-	var cellar Cellar
-	restGet(w, r, &cellar)
-}
-
-func getAllCellars(w rest.ResponseWriter, r *rest.Request) {
-	var cellars Cellars
-	restGet(w, r, &cellars)
+func makeRestDeleter(v RestKeyer) rest.HandlerFunc {
+	return func(w rest.ResponseWriter, r *rest.Request) { restDelete(w, r, v) }
 }
 
 func postCellar(w rest.ResponseWriter, r *rest.Request) {
@@ -786,18 +766,8 @@ func postCellar(w rest.ResponseWriter, r *rest.Request) {
 	restPost(w, r, &cellar, parentKey)
 }
 
-func deleteCellar(w rest.ResponseWriter, r *rest.Request) {
-	restDelete(w, r, Cellar{})
-}
-
-func getBeer(w rest.ResponseWriter, r *rest.Request) {
-	var beer Beer
-	restGet(w, r, &beer)
-}
-
-func getAllBeers(w rest.ResponseWriter, r *rest.Request) {
-	var beers Beers
-	restGet(w, r, &beers)
+func makeRestGetter(v RestGetter) rest.HandlerFunc {
+	return func(w rest.ResponseWriter, r *rest.Request) { restGet(w, r, v) }
 }
 
 func postBeer(w rest.ResponseWriter, r *rest.Request) {
@@ -808,10 +778,6 @@ func postBeer(w rest.ResponseWriter, r *rest.Request) {
 	}
 	var beer Beer
 	restPost(w, r, &beer, parentKey)
-}
-
-func deleteBeer(w rest.ResponseWriter, r *rest.Request) {
-	restDelete(w, r, Beer{})
 }
 
 func addUntappdCredentials(u *url.URL, config Config) {
