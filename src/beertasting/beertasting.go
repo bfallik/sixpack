@@ -69,14 +69,8 @@ func isAuthorized(r *http.Request) error {
 	if u == nil {
 		return fmt.Errorf("Not Authorized")
 	}
-	usr, err := lookupUser(r, u)
-	if err != nil {
-		return err
-	}
-	if usr == nil {
-		return fmt.Errorf("Not Authorized")
-	}
-	return nil
+	_, err := lookupUser(r, u)
+	return err
 }
 
 func (AppengineMiddleware) MiddlewareFunc(handler rest.HandlerFunc) rest.HandlerFunc {
