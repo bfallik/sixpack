@@ -118,6 +118,7 @@ func init() {
 	restAdminHandler.SetRoutes(
 		&rest.Route{"GET", "/api/admin/config", restHandler(getAdminConfig)},
 		&rest.Route{"PUT", "/api/admin/config", restHandler(putAdminConfig)},
+
 		&rest.Route{"GET", "/api/admin/user-tokens", getAdminAllUserTokens},
 		&rest.Route{"POST", "/api/admin/user-tokens", postAdminUserTokens},
 		&rest.Route{"DELETE", "/api/admin/user-tokens/:token", deleteAdminUserTokens},
@@ -141,10 +142,12 @@ func init() {
 		&rest.Route{"POST", "/api/users/:id/cellars/:cellar_id/beers", makeRestPoster(&Beer{})},
 		&rest.Route{"GET", "/api/users/:id/cellars/:cellar_id/beers/:beer_id", makeRestGetter(&Beer{})},
 		&rest.Route{"DELETE", "/api/users/:id/cellars/:cellar_id/beers/:beer_id", makeRestDeleter(&Beer{})},
+
 		&rest.Route{"GET", "/api/untappd/search/beer", restHandler(untappdAPI)},
 		&rest.Route{"GET", "/api/untappd/beer/info/:bid", restHandler(untappdAPI)},
-		&rest.Route{"GET", "/api/user/me/cellar/:cellar_name", restHandler(getCellarByName)},
 		&rest.Route{"GET", "/api/untappd/brewery/info/:brewery_id", restHandler(untappdAPI)},
+
+		&rest.Route{"GET", "/api/user/me/cellar/:cellar_name", restHandler(getCellarByName)},
 	)
 	http.Handle("/api/admin/config", &restAdminHandler)
 	http.Handle("/api/admin/user-tokens", &restAdminHandler)
