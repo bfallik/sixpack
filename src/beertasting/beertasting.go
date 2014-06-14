@@ -190,18 +190,8 @@ type UserTokens []UserToken
 func (tokens *UserTokens) DatastoreGet(r *rest.Request) (int, error) {
 	c := appengine.NewContext(r.Request)
 	*tokens = UserTokens{}
-	q := datastore.NewQuery("UserToken")
-	for t := q.Run(c); ; {
-		var ut UserToken
-		key, err := t.Next(&ut)
-		if err == datastore.Done {
-			break
-		}
-		if err != nil {
-			return http.StatusInternalServerError, err
-		}
-		ut.ID = key.IntID()
-		*tokens = append(*tokens, ut)
+	if _, err := datastore.NewQuery("UserToken").GetAll(c, tokens); err != nil {
+		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
 }
@@ -273,18 +263,8 @@ type Users []User
 func (users *Users) DatastoreGet(r *rest.Request) (int, error) {
 	c := appengine.NewContext(r.Request)
 	*users = Users{}
-	q := datastore.NewQuery("User")
-	for t := q.Run(c); ; {
-		var u User
-		key, err := t.Next(&u)
-		if err == datastore.Done {
-			break
-		}
-		if err != nil {
-			return http.StatusInternalServerError, err
-		}
-		u.ID = key.IntID()
-		*users = append(*users, u)
+	if _, err := datastore.NewQuery("User").GetAll(c, users); err != nil {
+		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
 }
@@ -348,18 +328,8 @@ func (cellars *Cellars) DatastoreGet(r *rest.Request) (int, error) {
 		return http.StatusInternalServerError, err
 	}
 	*cellars = Cellars{}
-	q := datastore.NewQuery("Cellar").Ancestor(userKey)
-	for t := q.Run(c); ; {
-		var cl Cellar
-		key, err := t.Next(&cl)
-		if err == datastore.Done {
-			break
-		}
-		if err != nil {
-			return http.StatusInternalServerError, err
-		}
-		cl.ID = key.IntID()
-		*cellars = append(*cellars, cl)
+	if _, err := datastore.NewQuery("Cellar").Ancestor(userKey).GetAll(c, cellars); err != nil {
+		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
 }
@@ -422,18 +392,8 @@ func (beers *Beers) DatastoreGet(r *rest.Request) (int, error) {
 		return http.StatusInternalServerError, err
 	}
 	*beers = Beers{}
-	q := datastore.NewQuery("Beer").Ancestor(cellarKey)
-	for t := q.Run(c); ; {
-		var b Beer
-		key, err := t.Next(&b)
-		if err == datastore.Done {
-			break
-		}
-		if err != nil {
-			return http.StatusInternalServerError, err
-		}
-		b.ID = key.IntID()
-		*beers = append(*beers, b)
+	if _, err := datastore.NewQuery("Beer").Ancestor(cellarKey).GetAll(c, beers); err != nil {
+		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
 }
@@ -657,19 +617,7 @@ func lookupTokenKeys(r *http.Request) ([]*datastore.Key, error) {
 		return []*datastore.Key{}, fmt.Errorf("missing 'token'")
 	}
 	c := appengine.NewContext(r)
-	q := datastore.NewQuery("UserToken").Filter("Hash =", token).KeysOnly()
-	res := []*datastore.Key{}
-	for t := q.Run(c); ; {
-		key, err := t.Next(nil)
-		if err == datastore.Done {
-			break
-		}
-		if err != nil {
-			return []*datastore.Key{}, err
-		}
-		res = append(res, key)
-	}
-	return res, nil
+	return datastore.NewQuery("UserToken").Filter("Hash =", token).KeysOnly().GetAll(c, nil)
 }
 
 func newUserHandler(w http.ResponseWriter, r *http.Request) *handlerError {
