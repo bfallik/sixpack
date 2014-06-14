@@ -144,6 +144,7 @@ func init() {
 		&rest.Route{"GET", "/api/untappd/search/beer", restHandler(untappdAPI)},
 		&rest.Route{"GET", "/api/untappd/beer/info/:bid", restHandler(untappdAPI)},
 		&rest.Route{"GET", "/api/user/me/cellar/:cellar_name", restHandler(getCellarByName)},
+		&rest.Route{"GET", "/api/untappd/brewery/info/:brewery_id", restHandler(untappdAPI)},
 	)
 	http.Handle("/api/admin/config", &restAdminHandler)
 	http.Handle("/api/admin/user-tokens", &restAdminHandler)
