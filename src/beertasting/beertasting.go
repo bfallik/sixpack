@@ -831,11 +831,13 @@ func restClientGetM(c appengine.Context, u url.URL, v interface{}) (int, *handle
 	if herr != nil {
 		return 0, herr
 	}
-	if err := memcache.JSON.Set(c, &memcache.Item{
-		Key:    u.RequestURI(),
-		Object: v,
-	}); err != nil {
-		c.Errorf("unable to store %s: %v", u.Path, err)
+	if code == http.StatusOK {
+		if err := memcache.JSON.Set(c, &memcache.Item{
+			Key:    u.RequestURI(),
+			Object: v,
+		}); err != nil {
+			c.Errorf("unable to store %s: %v", u.Path, err)
+		}
 	}
 	return code, nil
 }
