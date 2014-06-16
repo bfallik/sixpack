@@ -521,21 +521,18 @@ func oauthUntappdHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	buf, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	defer resp.Body.Close()
 	oauthResponse := struct {
 		Response struct {
 			AccessToken string `json:"access_token"`
 		}
 	}{}
-	err = json.Unmarshal(buf, &oauthResponse)
-	if err != nil {
-		err = fmt.Errorf("%s: %s", err.Error(), string(buf))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	if err = json.NewDecoder(resp.Body).Decode(&oauthResponse); err != nil {
+		if err != io.EOF {
+			c.Errorf("json.Decode(): %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	expire := time.Now().AddDate(0, 0, 1)
