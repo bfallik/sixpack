@@ -18,6 +18,22 @@ cellarApp.factory('security',
 	}]
 );
 
+cellarApp.factory('alertSvc', function($rootScope) {
+  var alertSvc = {};
+
+  alertSvc.alerts = [];
+
+  alertSvc.addDanger = function(msg) {
+    this.alerts.push({type: "danger", msg: msg});
+  };
+
+  alertSvc.close = function(index) {
+    this.alerts.splice(index, 1);
+  };
+
+  return alertSvc;
+});
+
 cellarApp.config(
   function($routeProvider) {
     $routeProvider.
@@ -39,7 +55,13 @@ cellarApp.config(
   }
 );
 
-cellarApp.controller('navBarCtrl', ["$scope", "security", function ($scope, security) {
+cellarApp.controller('alertCtrl', ["$scope", "alertSvc", function ($scope, alertSvc) {
+  $scope.alerts = alertSvc.alerts
+
+  $scope.closeAlert = alertSvc.close
+}])
+
+cellarApp.controller('navBarCtrl', ["$scope", "security", "alertSvc", function ($scope, security, alertSvc) {
 	security.getCurrentUser().then(function(u) {
 		$scope.currentUser = u
 	})
@@ -57,13 +79,14 @@ cellarApp.controller('navBarCtrl', ["$scope", "security", function ($scope, secu
 	})
 }]);
 
-cellarApp.controller('searchCtrl', ["$scope", "$resource", "security", function ($scope, $resource, security) {
+cellarApp.controller('searchCtrl', ["$scope", "$resource", "security", "alertSvc", function ($scope, $resource, security, alertSvc) {
 	$scope.doSearch = function(query) {
 	var beerSearch = $resource("/api/untappd/search/beer", {});
 	beerSearch.get({"q": query}).$promise.then(function(beers) {
 		$scope.beers = beers;
-	}, function(msg){
-		console.error(msg);
+	}, function(error){
+		alertSvc.addDanger(error.data);
+		console.error(error);
 	})};
 
 	security.getCurrentUser().then(function(u) {
