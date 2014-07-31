@@ -111,7 +111,6 @@ func init() {
 
 	restAdminHandler := rest.ResourceHandler{
 		PreRoutingMiddlewares: []rest.Middleware{
-			&AppengineMiddleware{},
 			&AppengineAdminMiddleware{},
 		},
 	}
