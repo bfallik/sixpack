@@ -2,6 +2,7 @@ package beertasting
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -596,6 +597,8 @@ func feedHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+var errUserNotFound = errors.New("user not found")
+
 func lookupUser(r *http.Request, u *user.User) (*User, *datastore.Key, error) {
 	c := appengine.NewContext(r)
 	var us Users
@@ -603,15 +606,18 @@ func lookupUser(r *http.Request, u *user.User) (*User, *datastore.Key, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	if len(us) != 1 {
-		return nil, nil, fmt.Errorf("found %d match(es) for %s", len(us), u.Email)
+	switch len(us) {
+	case 0:
+		return nil, nil, errUserNotFound
+	case 1:
+		return &us[0], keys[0], nil
 	}
-	return &us[0], keys[0], nil
+	panic(fmt.Sprintf("found %d matches for %s", len(us), u.Email))
 }
 
 func maybeCreateUser(r *http.Request, u *user.User) (*User, error) {
 	usr, _, err := lookupUser(r, u)
-	if err != nil {
+	if err != nil && err != errUserNotFound {
 		return nil, err
 	}
 	c := appengine.NewContext(r)
